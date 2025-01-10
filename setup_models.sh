@@ -48,10 +48,6 @@ if [[ ! -f "$MODEL_DIR/kokoro-v0_19.pth" ]]; then
   echo "Model file 'kokoro-v0_19.pth' is missing in $MODEL_DIR."
   exit 1
 fi
-if [[ ! -d "$VOICE_DIR" ]]; then
-  echo "Voice directory '$VOICE_DIR' is missing. Creating directory..."
-  mkdir -p "$VOICE_DIR"
-fi
 
 # Step 5: Display setup success
 print_status "Model and dependencies are successfully set up!"
