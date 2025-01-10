@@ -23,19 +23,24 @@ fi
 # Override DEBUG variable for debugging
 export DEBUG=true
 
+# Create OUTPUT_DIR if it doesn't exist
+if [[ ! -d "$OUTPUT_DIR" ]]; then
+  echo "Creating output directory at $OUTPUT_DIR..."
+  mkdir -p "$OUTPUT_DIR"
+fi
+
 # Reset server.log
 echo "Resetting server.log..."
 > server.log
 
 # Validate API key
-if [[ -z "$API_KEY" ]]; then
+if [[ -z "$API_KEY" || "$API_KEY" == "your_api_key_here" ]]; then
   echo "Error: API_KEY not set in .env file"
   exit 1
 fi
 
 # Launch Flask server with DEBUG=true
 echo "Launching the Flask server with DEBUG=true..."
-# Use MODEL_PATH and VOICE_PATH if your server script requires them as arguments or environment variables
 # Assuming server.py reads from environment variables
 uv run openai_kokoro_tts/server.py > server.log 2>&1 &
 SERVER_PID=$!
@@ -63,10 +68,10 @@ fi
 
 # Send inference request
 TEXT="This is a test of the Kokoro TTS system."
-VOICE="af_bella"
+VOICE="${DEFAULT_VOICE}"
 RESPONSE_FORMAT="mp3"
 echo "Sending inference request..."
-HTTP_RESPONSE=$(curl -s -o response.$RESPONSE_FORMAT -w "%{http_code}" \
+HTTP_RESPONSE=$(curl -s -o "$OUTPUT_DIR/response.$RESPONSE_FORMAT" -w "%{http_code}" \
   -X POST http://localhost:${PORT:-9090}/v1/audio/speech \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
@@ -77,7 +82,7 @@ HTTP_RESPONSE=$(curl -s -o response.$RESPONSE_FORMAT -w "%{http_code}" \
       }")
 
 if [[ "$HTTP_RESPONSE" == "200" ]]; then
-  echo "Inference request successful. Response saved to response.$RESPONSE_FORMAT"
+  echo "Inference request successful. Response saved to $OUTPUT_DIR/response.$RESPONSE_FORMAT"
 else
   echo "Inference request failed with HTTP status: $HTTP_RESPONSE"
   echo "Displaying server.log:"

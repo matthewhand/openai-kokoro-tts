@@ -30,6 +30,13 @@ class TTSHandler:
         )
         self.model = self._load_model()
 
+        # Output directory
+        self.output_dir = os.getenv('OUTPUT_DIR', './outputs')
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir, exist_ok=True)
+            if DEBUG_MODE:
+                logging.debug(f"Created output directory at {self.output_dir}")
+
     def _load_voicepacks(self):
         """
         Preload all available voicepacks.
@@ -47,7 +54,6 @@ class TTSHandler:
                 file_path = os.path.join(self.voicepack_dir, file)
                 try:
                     # Load the PyTorch tensor and convert to NumPy array
-                    # Removed 'weights_only=True' as it's not a valid parameter
                     loaded_voicepack = torch.load(file_path).numpy()
                     voicepacks[voice_name] = loaded_voicepack
                     if DEBUG_MODE:
@@ -193,14 +199,14 @@ class TTSHandler:
             raise RuntimeError("Failed to generate speech.")
 
         # Define output file path
-        output_file = f"{voice}_output.{response_format}"
+        output_file = os.path.join(self.output_dir, f"{voice}_output.{response_format}")
         if DEBUG_MODE:
             logging.debug(f"Output file path: {output_file}")
 
         # Save the audio data to a file using soundfile and pydub for proper encoding
         try:
             # Assume the model outputs raw float audio samples with a sampling rate of 24000 Hz
-            wav_path = f"{voice}_output.wav"
+            wav_path = os.path.join(self.output_dir, f"{voice}_output.wav")
             sf.write(wav_path, audio_data, 24000)  # Save as WAV first
             if DEBUG_MODE:
                 logging.debug(f"Intermediate WAV saved to {wav_path}")
