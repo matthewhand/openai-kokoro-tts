@@ -23,18 +23,18 @@ class TTSHandler:
         base_dir = os.path.dirname(os.path.abspath(__file__))
 
         # Use VOICE_PATH from the environment or fall back to the relative voices path
-        self.voicepack_dir = os.getenv('VOICE_PATH', os.path.join(base_dir, '../models/kokoro/voices'))
+        self.voicepack_dir = os.getenv('VOICE_PATH', os.path.join(base_dir, 'models/kokoro/voices'))
         self.voicepacks = self._load_voicepacks()
 
         # Model initialization
         self.model_path = os.getenv(
             'MODEL_PATH',
-            os.path.join(base_dir, '../models/kokoro/kokoro-v0_19.pth')
+            os.path.join(base_dir, 'models/kokoro/kokoro-v0_19.pth')
         )
         self.model = self._load_model()
 
         # Output directory
-        self.output_dir = os.getenv('OUTPUT_DIR', os.path.join(base_dir, '../outputs'))
+        self.output_dir = os.getenv('OUTPUT_DIR', os.path.join(base_dir, 'outputs'))
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir, exist_ok=True)
             if DEBUG_MODE:
@@ -80,7 +80,7 @@ class TTSHandler:
             raise FileNotFoundError(f"Model file not found: {self.model_path}")
 
         try:
-            model = build_model('kokoro-v0_19.pth', self.device)
+            model = build_model(self.model_path, self.device)
             if DEBUG_MODE:
                 logging.debug(f"Model loaded successfully from {self.model_path} on {self.device}")
             return model
