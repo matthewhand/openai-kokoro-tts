@@ -76,7 +76,7 @@ HTTP_RESPONSE=$(curl -s -o "$OUTPUT_DIR/response.$RESPONSE_FORMAT" -w "%{http_co
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
   -d "{
-        \"text\": \"$TEXT\",
+        \"input\": \"$TEXT\",
         \"voice\": \"$VOICE\",
         \"response_format\": \"$RESPONSE_FORMAT\"
       }")
