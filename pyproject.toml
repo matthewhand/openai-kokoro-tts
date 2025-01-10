@@ -1,0 +1,35 @@
+[project]
+name = "openai-kokoro-tts"
+version = "0.1.0"
+description = "Present Kokoro TTS as an OpenAI API compatible endpoint"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+authors = [
+  { name = "Matthew Hand", email = "matthewhandau@gmail.com" }
+]
+dependencies = [
+    "munch>=4.0.0",
+    "phonemizer>=3.3.0",
+    "scipy>=1.15.0",
+    "torch<2.0.0",
+    "torchvision",
+    "transformers>=4.48.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch", marker = "platform_machine == 'aarch64'" }
+]
+torchvision = [
+    { index = "pytorch", marker = "platform_machine == 'aarch64'" }
+]

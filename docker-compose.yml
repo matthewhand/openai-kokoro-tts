@@ -1,0 +1,25 @@
+services:
+  app:
+    build: .
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all  # Use all available GPUs
+      - API_KEY=${API_KEY:-your_api_key_here}
+      - PORT=9090  # Ensure port alignment
+      - DEFAULT_VOICE=${DEFAULT_VOICE:-af_sky}
+      - REQUIRE_API_KEY=${REQUIRE_API_KEY:-True}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: ${GPU_DRIVER-nvidia}
+              count: all
+              capabilities: [gpu]
+    ports:
+      - '9090:9090'
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./cache:/root/.cache
+    command: /bin/sh -c "python3 /app/test.py && python3 /app/server.py"
