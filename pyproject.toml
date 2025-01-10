@@ -8,8 +8,12 @@ authors = [
   { name = "Matthew Hand", email = "matthewhandau@gmail.com" }
 ]
 dependencies = [
+    "flask>=3.1.0",
     "munch>=4.0.0",
+    "onnxruntime>=1.20.1",
     "phonemizer>=3.3.0",
+    "pydub>=0.25.1",
+    "python-dotenv>=1.0.1",
     "scipy>=1.15.0",
     "soundfile>=0.13.0",
     "torch>=1.0.0",
