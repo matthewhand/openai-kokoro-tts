@@ -1,3 +1,5 @@
+# openai_kokoro_tts/server.py
+
 import os
 import logging
 from flask import Flask, request, jsonify, send_file
@@ -5,7 +7,7 @@ from dotenv import load_dotenv
 from tts_handler import TTSHandler
 from utils import require_api_key, AUDIO_FORMAT_MIME_TYPES
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
 
 # Initialize logging
@@ -46,8 +48,8 @@ def text_to_speech():
     Generate speech from text input.
     
     JSON Body:
-        - text (str): The input text to convert to speech.
-        - voice (str, optional): The voice model to use (default: "af").
+        - input (str): The input text to convert to speech.
+        - voice (str, optional): The voice model to use (default: from .env).
         - response_format (str, optional): Desired audio format (default: "mp3").
     
     Returns:
@@ -55,15 +57,15 @@ def text_to_speech():
     """
     try:
         data = request.json
-        if not data or 'text' not in data:
-            return jsonify({"error": "Missing 'text' in request body"}), 400
+        if not data or 'input' not in data:
+            return jsonify({"error": "Missing 'input' in request body"}), 400
 
         text = data.get('input')
         voice = data.get('voice', None)
         response_format = data.get('response_format', "mp3")
 
         if DEBUG_MODE:
-            logging.debug(f"Received request: text='{text}', voice='{voice}', format='{response_format}'")
+            logging.debug(f"Received request: input='{text}', voice='{voice}', format='{response_format}'")
 
         # Generate speech
         audio_file_path = tts_handler.generate_speech(text, voice, response_format)

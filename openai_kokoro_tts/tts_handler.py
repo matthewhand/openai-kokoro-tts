@@ -1,3 +1,5 @@
+# openai_kokoro_tts/tts_handler.py
+
 import os
 import logging
 import torch
@@ -6,7 +8,7 @@ import onnxruntime
 import soundfile as sf
 from pydub import AudioSegment
 
-DEBUG_MODE = os.getenv('DEBUG_MODE', 'false').lower() == 'true'
+DEBUG_MODE = os.getenv('DEBUG', 'false').lower() in ("true", "1", "yes")
 
 
 class TTSHandler:
@@ -31,7 +33,7 @@ class TTSHandler:
         self.model = self._load_model()
 
         # Output directory
-        self.output_dir = os.getenv('OUTPUT_DIR', './outputs')
+        self.output_dir = os.getenv('OUTPUT_DIR', os.path.join(base_dir, '../outputs'))
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir, exist_ok=True)
             if DEBUG_MODE:
