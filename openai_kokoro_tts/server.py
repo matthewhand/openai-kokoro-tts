@@ -71,11 +71,22 @@ def text_to_speech():
         audio_file_path = tts_handler.generate_speech(text, voice, response_format)
         mime_type = AUDIO_FORMAT_MIME_TYPES.get(response_format.lower(), "audio/mpeg")
 
-        return send_file(audio_file_path, mimetype=mime_type, as_attachment=True, download_name=f"speech.{response_format}")
+        return send_file(
+            audio_file_path,
+            mimetype=mime_type,
+            as_attachment=True,
+            download_name=f"speech.{response_format}"
+        )
 
+    except ValueError as ve:
+        logging.error(f"ValueError: {ve}")
+        return jsonify({"error": str(ve)}), 400
+    except RuntimeError as re:
+        logging.error(f"RuntimeError: {re}")
+        return jsonify({"error": str(re)}), 500
     except Exception as e:
-        logging.error(f"Error generating speech: {e}")
-        return jsonify({"error": str(e)}), 500
+        logging.error(f"Unexpected error: {e}")
+        return jsonify({"error": "An unexpected error occurred."}), 500
 
 @app.route('/v1/models', methods=['GET'])
 @require_api_key

@@ -42,7 +42,8 @@ fi
 # Launch Flask server with DEBUG=true
 echo "Launching the Flask server with DEBUG=true..."
 # Assuming server.py reads from environment variables
-uv run openai_kokoro_tts/server.py > server.log 2>&1 &
+# Use nohup or a similar method to run the server in the background
+python openai_kokoro_tts/server.py > server.log 2>&1 &
 SERVER_PID=$!
 
 # Function to clean up server process on exit
