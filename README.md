@@ -2,7 +2,7 @@
 
 <img src="assets/images/kokoro-logo.jpg" alt="Project Logo" width="400"/>
 
-Welcome to **openai-kokoro-tts**! This project provides a user-friendly Flask-based API for generating high-quality text-to-speech (TTS) audio using **Kokoro-TTS**, a flexible and powerful TTS engine.
+Welcome to **openai-kokoro-tts**! This is a third-party application that provides an OpenAI API-compatible endpoint for generating high-quality text-to-speech (TTS) audio using **Kokoro-TTS**, a flexible and powerful TTS engine developed by [hexgrad](https://huggingface.co/hexgrad/Kokoro-82M). This project can be used as a drop-in replacement for various OpenAI client applications, such as open-webui, enabling seamless integration of Kokoro-TTS into your existing workflows.
 
 ---
 
@@ -22,6 +22,7 @@ Welcome to **openai-kokoro-tts**! This project provides a user-friendly Flask-ba
 - [Responsible Use](#responsible-use)
 - [Privacy Notice](#privacy-notice)
 - [AI Disclosure](#ai-disclosure)
+- [Acknowledgments](#acknowledgments)
 - [TODO](#todo)
 - [License](#license)
 
@@ -179,8 +180,8 @@ Primary route for generating speech from text input. Requires an API key in the 
 - **Method**: `POST`
 - **Headers**: `Authorization: Bearer <API_KEY>`
 - **Data (JSON)**:
-  - `text` (string): The input text to convert to speech.
-  - `voice` (string, optional): Voice model to use (default: "Sky").
+  - `input` (string): The input text to convert to speech.
+  - `voice` (string, optional): Voice model to use (default: "af_bella").
   - `response_format` (string, optional): Output audio format (default: `mp3`).
 
 ---
@@ -236,6 +237,12 @@ This tool processes text inputs to generate speech and does not store or infer a
 ## AI Disclosure
 
 Outputs generated using openai-kokoro-tts are AI-generated. Users should not misrepresent these outputs as human-generated, especially in contexts where such misrepresentation could harm others or violate ethical guidelines.
+
+---
+
+## Acknowledgments
+
+This project utilizes the **Kokoro-TTS** engine developed by [hexgrad](https://huggingface.co/hexgrad/Kokoro-82M). We appreciate their work and contributions to the TTS community.
 
 ---
 
