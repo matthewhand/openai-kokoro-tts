@@ -58,7 +58,7 @@ def text_to_speech():
         if not data or 'text' not in data:
             return jsonify({"error": "Missing 'text' in request body"}), 400
 
-        text = data.get('text')
+        text = data.get('input')
         voice = data.get('voice', None)
         response_format = data.get('response_format', "mp3")
 
