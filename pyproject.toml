@@ -11,35 +11,12 @@ dependencies = [
     "munch>=4.0.0",
     "phonemizer>=3.3.0",
     "scipy>=1.15.0",
-    "torch<2.0.0",
-    "torchvision",
+    "torch>=1.0.0",
+    "torchvision>=0.20.1",
     "transformers>=4.48.0",
 ]
-
-[build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-packages = ["openai_kokoro_tts"]
-
-[tool.setuptools.packages.find]
-include = ["openai_kokoro_tts"]
 
 [dependency-groups]
 dev = [
     "pytest>=8.3.4",
-]
-
-[[tool.uv.index]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[tool.uv.sources]
-torch = [
-    { index = "pytorch", marker = "platform_machine == 'aarch64'" }
-]
-torchvision = [
-    { index = "pytorch", marker = "platform_machine == 'aarch64'" }
 ]

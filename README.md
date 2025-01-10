@@ -133,10 +133,7 @@ If you're not on Ubuntu, follow these steps to set up the models manually:
    ```
 
 3. **Verify Directory Structure**:
-   Ensure the `models/kokoro/kokoro-v0_19.pth` file exists, and create the `voices` directory if it’s missing:
-   ```bash
-   mkdir -p voices
-   ```
+   Ensure the `models/kokoro/kokoro-v0_19.pth` file exists
 
 4. **Install System Dependencies**:
    - **macOS**:
@@ -150,11 +147,11 @@ If you're not on Ubuntu, follow these steps to set up the models manually:
 
 ### Running the Application
 
-1. **Create a Virtual Environment**:
-   Navigate to the project directory and initialize a `uv` project:
+1. **(Optional) Create a Virtual Environment**:
+   Navigate to the project directory and create a `uv` project virtual environment:
    ```bash
-   uv init
    uv venv .venv
+   . .venv/bin/activate
    ```
 
 2. **Sync Dependencies**:
