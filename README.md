@@ -19,6 +19,9 @@ Welcome to **openai-kokoro-tts**! This project provides a user-friendly Flask-ba
 - [API Endpoints](#api-endpoints)
   - [/v1/audio/speech](#v1audiospeech)
   - [/v1/models](#v1models)
+- [Responsible Use](#responsible-use)
+- [Privacy Notice](#privacy-notice)
+- [AI Disclosure](#ai-disclosure)
 - [TODO](#todo)
 - [License](#license)
 
@@ -212,6 +215,30 @@ Route for listing all available Kokoro-TTS voice models.
       ]
     }
     ```
+
+---
+
+## Responsible Use
+
+The openai-kokoro-tts project is designed for lawful, ethical, and responsible use. Users are prohibited from deploying this tool for:
+- Misleading or impersonating individuals.
+- Generating disinformation or fraudulent content.
+- Violating the privacy or rights of others.
+- Harassing, bullying, or otherwise harming individuals or communities.
+
+By using this project, you agree to comply with all applicable laws and OpenAI's usage policies.
+
+---
+
+## Privacy Notice
+
+This tool processes text inputs to generate speech and does not store or infer additional data from inputs. It is the user’s responsibility to ensure compliance with data privacy regulations when using this tool, especially if processing sensitive or personal data.
+
+---
+
+## AI Disclosure
+
+Outputs generated using openai-kokoro-tts are AI-generated. Users should not misrepresent these outputs as human-generated, especially in contexts where such misrepresentation could harm others or violate ethical guidelines.
 
 ---
 

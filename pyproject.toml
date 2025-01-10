@@ -16,6 +16,16 @@ dependencies = [
     "transformers>=4.48.0",
 ]
 
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["openai_kokoro_tts"]
+
+[tool.setuptools.packages.find]
+include = ["openai_kokoro_tts"]
+
 [dependency-groups]
 dev = [
     "pytest>=8.3.4",
