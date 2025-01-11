@@ -274,8 +274,8 @@ This project utilizes the **Kokoro-TTS** engine developed by [hexgrad](https://h
 
 ## TODO
 
-- [x] Flask service
-- [ ] Publish to Docker registry
+- [x] ONNX CPU inference
+- [ ] Transformers GPU inference
 
 ---
 
