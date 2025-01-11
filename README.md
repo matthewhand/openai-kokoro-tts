@@ -16,6 +16,7 @@ Welcome to **openai-kokoro-tts**! This is a third-party application that provide
   - [Environment Configuration](#environment-configuration)
   - [Setting Up Models](#setting-up-models)
   - [Running the Application](#running-the-application)
+- [ONNX and Transformers Usage](#onnx-and-transformers-usage)
 - [API Endpoints](#api-endpoints)
   - [/v1/audio/speech](#v1audiospeech)
   - [/v1/models](#v1models)
@@ -134,7 +135,7 @@ If you're not on Ubuntu, follow these steps to set up the models manually:
    ```
 
 3. **Verify Directory Structure**:
-   Ensure the `models/kokoro/kokoro-v0_19.pth` file exists
+   Ensure the `models/kokoro/kokoro-v0_19.pth` file exists.
 
 4. **Install System Dependencies**:
    - **macOS**:
@@ -167,6 +168,31 @@ If you're not on Ubuntu, follow these steps to set up the models manually:
    ```
 
 The server will start, and the API will be available at `http://localhost:8000`.
+
+---
+
+## ONNX and Transformers Usage
+
+### Default: ONNX for CPU Inference
+By default, the service is configured to use ONNX for efficient CPU-based inference. No additional setup is required.
+
+To run the service in CPU-only mode:
+```bash
+docker-compose up
+```
+
+### Enabling Transformers with GPU Acceleration
+To leverage GPU acceleration with transformers:
+
+1. Rename the example override file:
+   ```bash
+   mv docker-compose.override.yml.example docker-compose.override.yml
+   ```
+2. Start the service with GPU support:
+   ```bash
+   docker-compose up
+   ```
+   > **Note**: Docker automatically merges `docker-compose.override.yml` with `docker-compose.yml` if it detects it.
 
 ---
 
