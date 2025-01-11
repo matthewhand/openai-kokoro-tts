@@ -28,9 +28,7 @@ ENV UV_SYSTEM_PYTHON=1
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Initialize uv environment and add dependencies
-RUN uv init && \
-    uv add phonemizer transformers scipy munch torch && \
-    uv sync
+RUN uv sync
 
 # Expose the application port (default 8000, configurable via $PORT)
 EXPOSE 8000
