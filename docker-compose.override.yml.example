@@ -4,12 +4,12 @@ services:
   app:
     build:
       context: .
-    ports:
-      - '9090:9090'
-    volumes:
-      - ./cache:/root/.cache
+    runtime: nvidia
     environment:
+      - NVIDIA_VISIBLE_DEVICES=all
       - API_KEY=${API_KEY:-your_api_key_here}
       - PORT=9090
       - DEFAULT_VOICE=${DEFAULT_VOICE:-af_sky}
       - REQUIRE_API_KEY=${REQUIRE_API_KEY:-True}
+    volumes:
+      - ./cache:/root/.cache
