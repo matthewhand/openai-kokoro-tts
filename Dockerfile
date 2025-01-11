@@ -3,8 +3,6 @@ FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
 
 # Install Node.js, npm, and additional system dependencies
 RUN apt-get update && apt-get install -y \
-    nodejs \
-    npm \
     git-lfs \
     espeak-ng \
     && rm -rf /var/lib/apt/lists/*

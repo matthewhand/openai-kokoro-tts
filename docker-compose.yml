@@ -22,4 +22,4 @@ services:
     restart: unless-stopped
     volumes:
       - ./cache:/root/.cache
-    command: /bin/sh -c "python3 /app/test.py && python3 /app/server.py"
+    #command: /bin/sh -c "python3 /app/test.py && python3 /app/server.py"
