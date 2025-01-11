@@ -3,31 +3,29 @@ name = "openai-kokoro-tts"
 version = "0.1.0"
 description = "Present Kokoro TTS as an OpenAI API compatible endpoint"
 readme = "README.md"
-requires-python = ">=3.11,<3.12"
-authors = [
-  { name = "Matthew Hand", email = "matthewhandau@gmail.com" }
-]
+requires-python = ">=3.11"
 dependencies = [
     "flask>=3.1.0",
     "munch>=4.0.0",
-    "phonemizer>=3.3.0",
-    "pydub>=0.25.1",
     "python-dotenv>=1.0.1",
-    "scipy>=1.15.0",
-    "soundfile>=0.13.0",
-    "torch>=2.0.0",
-    "torchvision>=0.20.1",
-    "transformers>=4.48.0",
+    "onnxruntime>=1.15.0",
+    "onnx>=1.13.0",
+    "kokoro-onnx>=0.1.0"  # Replaces most of the custom ONNX functionality
 ]
 
-[dependency-groups]
-dev = [
-    "pytest>=8.3.4",
-]
+[project.optional-dependencies]
+gpu = ["torch==2.0.1", "torchvision>=0.20.1", "onnxruntime-gpu>=1.15.0"]
 
-[tool.pytest.ini_options]
-pythonpath = [
-    ".",          # Add project root
-    "models",      # Add the path to the Kokoro module
-    "models/kokoro" # Enable Kokoro to import local modules
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+
+[[tool.uv.index]]
+name = "pytorch-gpu"
+url = "https://download.pytorch.org/whl/cu121"
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-gpu", extra = "gpu" }
 ]
