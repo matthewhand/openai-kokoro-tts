@@ -6,26 +6,26 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "flask>=3.1.0",
+    "markupsafe>=3.0.2",
     "munch>=4.0.0",
+    "phonemizer>=3.3.0", 
+    "pydub>=0.25.1",
     "python-dotenv>=1.0.1",
+    "scipy>=1.15.0",
+    "soundfile>=0.13.0",
+    "transformers>=4.48.0",
     "onnxruntime>=1.15.0",
-    "onnx>=1.13.0",
-    "kokoro-onnx>=0.1.0"  # Replaces most of the custom ONNX functionality
+    "onnx>=1.13.0"
 ]
 
 [project.optional-dependencies]
-gpu = ["torch==2.0.1", "torchvision>=0.20.1", "onnxruntime-gpu>=1.15.0"]
+cpu = ["torch==2.0.1"]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
 
-[[tool.uv.index]]
-name = "pytorch-gpu"
-url = "https://download.pytorch.org/whl/cu121"
-
 [tool.uv.sources]
 torch = [
-    { index = "pytorch-cpu", extra = "cpu" },
-    { index = "pytorch-gpu", extra = "gpu" }
+    { index = "pytorch-cpu", extra = "cpu" }
 ]
