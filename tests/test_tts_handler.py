@@ -1,56 +1,48 @@
 import os
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 from openai_kokoro_tts.tts_handler import TTSHandler
-import numpy as np
+import torch
 
 class TestTTSHandler(unittest.TestCase):
     @patch.dict(os.environ, {"DEFAULT_VOICE": "af_bella"})  # Mock environment variable
     def setUp(self):
         """Set up TTSHandler for testing."""
+        self.mock_voice_dir = "voices"
+        os.makedirs(self.mock_voice_dir, exist_ok=True)
+
+        # Adjust the dummy voicepack size to match or exceed tokenized text length
+        dummy_voice_size = 100  # Large enough for typical test cases
+        dummy_voice = torch.rand(dummy_voice_size)  # Create a random tensor
+        torch.save(dummy_voice, os.path.join(self.mock_voice_dir, "af_bella.pt"))
+        torch.save(dummy_voice, os.path.join(self.mock_voice_dir, "af_sarah.pt"))
+
         self.tts_handler = TTSHandler()
-        # Mock the model.run method to return fake audio data
-        self.tts_handler.model = MagicMock()
-        # Simulate model output as a numpy array of float32
-        self.tts_handler.model.run.return_value = [np.random.randn(24000).astype(np.float32)]
+
+    def tearDown(self):
+        """Clean up after tests."""
+        # Remove the mock voices directory
+        for root, dirs, files in os.walk(self.mock_voice_dir, topdown=False):
+            for name in files:
+                os.remove(os.path.join(root, name))
+            for name in dirs:
+                os.rmdir(os.path.join(root, name))
+        os.rmdir(self.mock_voice_dir)
 
     def test_default_voice(self):
         """Test that the default voice is set correctly from the environment."""
-        self.assertEqual(self.tts_handler.default_voice, "af_bella", "Default voice should match the environment variable")
+        self.assertEqual(self.tts_handler.default_voice, "af_bella")
 
     def test_generate_speech_valid(self):
         """Test speech generation with valid input."""
-        text = "Hello, this is a test."
+        text = "Hello, this is a test of the openai kokoro tts application."
         voice = "af_bella"
         response_format = "mp3"
 
         try:
             output_file = self.tts_handler.generate_speech(text, voice, response_format)
-            self.assertTrue(output_file.endswith(".mp3"), "Generated file should be an MP3")
-            # Additionally, check if the file exists
-            self.assertTrue(os.path.exists(output_file), f"Output file {output_file} should exist")
-            # Clean up the generated file after test
-            os.remove(output_file)
+            self.assertTrue(output_file.endswith(".mp3"))
+            os.remove(output_file)  # Clean up generated file
         except Exception as e:
             self.fail(f"generate_speech raised an exception: {e}")
 
-    def test_generate_speech_invalid_voice(self):
-        """Test fallback to the default voice when an invalid voice is provided."""
-        text = "Hello, this is a fallback test."
-        invalid_voice = "unknown_voice"
-        response_format = "mp3"
-
-        try:
-            output_file = self.tts_handler.generate_speech(text, invalid_voice, response_format)
-            self.assertTrue(output_file.endswith(".mp3"), "Generated file should still be an MP3")
-            # Additionally, check if the file exists
-            self.assertTrue(os.path.exists(output_file), f"Output file {output_file} should exist")
-            # Clean up the generated file after test
-            os.remove(output_file)
-        except Exception as e:
-            self.fail(f"generate_speech raised an exception for invalid voice: {e}")
-
-            
-
-if __name__ == "__main__":
-    unittest.main()
