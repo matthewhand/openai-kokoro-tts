@@ -49,6 +49,23 @@ if [[ ! -f "$MODEL_DIR/kokoro-v0_19.pth" ]]; then
   exit 1
 fi
 
+echo "Setting up Kokoro models..."
+
+# Ensure the models/kokoro directory exists
+if [ ! -d "models/kokoro" ]; then
+    echo "Error: models/kokoro directory not found."
+    exit 1
+fi
+
+echo "__init__.py created in models/kokoro."
+
+
+# Create __init__.py with necessary exports if it doesn't exist
+cat > models/kokoro/__init__.py << 'EOF'
+from .kokoro import generate
+from .models import build_model
+EOF
+
 # Step 5: Display setup success
 print_status "Model and dependencies are successfully set up!"
 echo "Model directory: $MODEL_DIR"
