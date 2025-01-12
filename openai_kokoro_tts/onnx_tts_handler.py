@@ -69,3 +69,12 @@ class OnnxTTSHandler:
     def _text_to_tokens(self, text):
         # Convert text to numeric tokens
         return np.array([ord(char) for char in text], dtype=np.int32)
+
+    def get_voices(self):
+        """
+        Returns the list of valid voices available in this TTS handler.
+
+        Returns:
+            list[str]: A list of valid voice names.
+        """
+        return self.valid_voices

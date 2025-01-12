@@ -4,7 +4,7 @@ import os
 import logging
 from flask import Flask, request, jsonify, send_file
 from dotenv import load_dotenv
-from tts_handler import TTSHandler
+from onnx_tts_handler import OnnxTTSHandler
 from utils import require_api_key, AUDIO_FORMAT_MIME_TYPES
 
 # Load environment variables from .env file
@@ -21,11 +21,12 @@ if DEBUG_MODE:
 # Initialize Flask app
 app = Flask(__name__)
 
-# Initialize TTSHandler
-tts_handler = TTSHandler()
+# Initialize OnnxTTSHandler
+tts_handler = OnnxTTSHandler()
 
 # Single info log statement for server initialization
 logging.info("Flask server for Kokoro-TTS initialized successfully.")
+
 
 @app.before_request
 def log_request_info():
@@ -40,6 +41,7 @@ def log_request_info():
             logging.debug(f"Payload: {request.json}")
         else:
             logging.debug("Payload: Non-JSON or empty.")
+
 
 @app.route('/v1/audio/speech', methods=['POST'])
 @require_api_key
@@ -88,6 +90,7 @@ def text_to_speech():
         logging.error(f"Unexpected error: {e}")
         return jsonify({"error": "An unexpected error occurred."}), 500
 
+
 @app.route('/v1/models', methods=['GET'])
 @require_api_key
 def list_models():
@@ -97,10 +100,11 @@ def list_models():
     Returns:
         JSON response with available models.
     """
-    models = list(tts_handler.voicepacks.keys())
+    models = tts_handler.get_voices()
     if DEBUG_MODE:
         logging.debug(f"Available models: {models}")
     return jsonify({"models": models})
+
 
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 9090))
