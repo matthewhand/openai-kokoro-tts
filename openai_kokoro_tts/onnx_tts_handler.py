@@ -37,6 +37,21 @@ class OnnxTTSHandler:
             raise RuntimeError("ONNX Runtime initialization failed.") from e
 
     def generate_speech(self, text, voice=None, response_format="mp3"):
+        """
+        Generate speech from input text using the specified or default voice.
+
+        Args:
+            text (str): The input text to convert to speech.
+            voice (str, optional): The voice to use for speech synthesis. Defaults to the configured default voice.
+            response_format (str, optional): The format of the audio output. Defaults to "mp3".
+
+        Returns:
+            str: The path to the generated audio file.
+
+        Raises:
+            ValueError: If the input text is empty.
+            RuntimeError: If an invalid voice is provided or if inference fails.
+        """
         if not text:
             raise ValueError("Input text cannot be empty.")
 
@@ -52,8 +67,18 @@ class OnnxTTSHandler:
             tokens = self._text_to_tokens(text)
             logging.debug(f"Input tokens for ONNX model: {tokens}")
 
-            # Perform inference
-            audio = self.session.run([self.output_name], {self.input_name: tokens})[0]
+            # Define additional inputs for the model
+            style = np.ones((1,), dtype=np.float32)  # Mock style input
+            speed = np.array([1.0], dtype=np.float32)  # Default speed
+
+            # Perform inference with all required inputs
+            inputs = {
+                self.input_name: tokens,
+                "style": style,
+                "speed": speed,
+            }
+            logging.debug(f"Model inputs: {inputs}")
+            audio = self.session.run([self.output_name], inputs)[0]
 
             # Save audio to file
             output_file = f"output.{response_format}"
@@ -67,7 +92,15 @@ class OnnxTTSHandler:
             raise RuntimeError("Failed to generate speech with ONNX Runtime.") from e
 
     def _text_to_tokens(self, text):
-        # Convert text to numeric tokens
+        """
+        Convert input text into numeric tokens for the ONNX model.
+
+        Args:
+            text (str): The text to convert.
+
+        Returns:
+            np.ndarray: A NumPy array of numeric tokens.
+        """
         return np.array([ord(char) for char in text], dtype=np.int32)
 
     def get_voices(self):
