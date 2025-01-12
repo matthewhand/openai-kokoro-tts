@@ -31,7 +31,9 @@ class OnnxTTSHandler:
             self.session = ort.InferenceSession(model_path)
             self.input_name = self.session.get_inputs()[0].name
             self.output_name = self.session.get_outputs()[0].name
+            self.required_inputs = [input.name for input in self.session.get_inputs()]
             logging.info(f"ONNX model successfully loaded from {model_path}.")
+            logging.debug(f"Model inputs: {self.required_inputs}")
         except Exception as e:
             logging.error(f"Failed to initialize ONNX Runtime session: {e}")
             raise RuntimeError("ONNX Runtime initialization failed.") from e
@@ -71,13 +73,14 @@ class OnnxTTSHandler:
             style = np.ones((1,), dtype=np.float32)  # Mock style input
             speed = np.array([1.0], dtype=np.float32)  # Default speed
 
-            # Perform inference with all required inputs
+            # Prepare inputs for inference
             inputs = {
-                self.input_name: tokens,
-                "style": style,
-                "speed": speed,
+                name: tokens if name == "tokens" else style if name == "style" else speed
+                for name in self.required_inputs
             }
             logging.debug(f"Model inputs: {inputs}")
+
+            # Perform inference
             audio = self.session.run([self.output_name], inputs)[0]
 
             # Save audio to file
@@ -101,7 +104,7 @@ class OnnxTTSHandler:
         Returns:
             np.ndarray: A NumPy array of numeric tokens.
         """
-        return np.array([ord(char) for char in text], dtype=np.int32)
+        return np.array([ord(char) for char in text], dtype=np.int64)
 
     def get_voices(self):
         """
