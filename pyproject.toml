@@ -21,20 +21,21 @@ dependencies = [
 [project.optional-dependencies]
 cpu = ["torch==2.0.1"]
 
-[[tool.uv.index]]
-name = "pytorch-cpu"
-url = "https://download.pytorch.org/whl/cpu"
-
-[[tool.uv.index]]
-name = "pypi"
-url = "https://pypi.org/simple"
-
-[tool.uv.sources]
-torch = { index = "pytorch-cpu", extra = "cpu" }
-markupsafe = { index = "pypi" }
+#[[tool.uv.index]]
+#name = "pytorch-cpu"
+#url = "https://download.pytorch.org/whl/cpu"
+#
+#[[tool.uv.index]]
+#name = "pypi"
+#url = "https://pypi.org/simple"
+#
+#[tool.uv.sources]
+#torch = { index = "pytorch-cpu", extra = "cpu" }
+#markupsafe = { index = "pypi" }
 
 [tool.pytest.ini_options]
 pythonpath = [
     ".",          # Add project root
+    "models/kokoro",          # Add kokoro root
     "openai_kokoro_tts" # Add the directory containing the app
 ]
