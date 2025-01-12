@@ -15,7 +15,8 @@ dependencies = [
     "soundfile>=0.13.0",
     "transformers>=4.48.0",
     "onnxruntime>=1.15.0",
-    "onnx>=1.13.0"
+    "onnx>=1.13.0",
+    "kokoro-onnx>=0.2.6",
 ]
 
 [project.optional-dependencies]

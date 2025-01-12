@@ -1,6 +1,6 @@
 import os
 import logging
-from kokoro_onnx import KokoroONNX
+from kokoro_onnx import Kokoro
 
 DEBUG_MODE = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
 
@@ -20,7 +20,7 @@ class TTSHandler:
             raise FileNotFoundError(f"Voices file not found at {voices_path}")
 
         # Initialize Kokoro-ONNX
-        self.kokoro = KokoroONNX(model_path, voices_path)
+        self.kokoro = Kokoro(model_path, voices_path)
 
     def generate_speech(self, text, voice=None, response_format="mp3"):
         """

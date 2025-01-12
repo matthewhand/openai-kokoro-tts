@@ -276,6 +276,7 @@ This project utilizes the **Kokoro-TTS** engine developed by [hexgrad](https://h
 
 - [x] ONNX CPU inference
 - [ ] Transformers GPU inference
+- [ ] Simplify using kokoro-onnx
 
 ---
 

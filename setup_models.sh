@@ -59,6 +59,7 @@ fi
 
 echo "__init__.py created in models/kokoro."
 
+curl -L https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.json > models/kokoro/voices.json
 
 # Create __init__.py with necessary exports if it doesn't exist
 cat > models/kokoro/__init__.py << 'EOF'
