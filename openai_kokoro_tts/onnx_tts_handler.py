@@ -102,9 +102,9 @@ class OnnxTTSHandler:
             text (str): The text to convert.
 
         Returns:
-            np.ndarray: A NumPy array of numeric tokens.
+            np.ndarray: A NumPy array of numeric tokens with a batch dimension.
         """
-        return np.array([ord(char) for char in text], dtype=np.int64)
+        return np.array([[ord(char) for char in text]], dtype=np.int64)  # Add batch dimension
 
     def get_voices(self):
         """
