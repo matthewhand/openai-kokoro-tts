@@ -14,16 +14,17 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uvx /bin/
 WORKDIR /app
 
 # Copy project files
-COPY pyproject.toml ./
+COPY pyproject.toml ./ 
 COPY openai_kokoro_tts/ openai_kokoro_tts/
 COPY tests/ tests/
 
 # Clone the Kokoro-82M model repository
 RUN git lfs install && git clone https://huggingface.co/hexgrad/Kokoro-82M /app/models/kokoro
 
-# Set environment variables to prioritize uv
+# Set environment variables to prioritize uv and Python path
 ENV UV_SYSTEM_PYTHON=1
 ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app:${PYTHONPATH}"
 
 # Initialize uv environment and add dependencies
 RUN uv sync
