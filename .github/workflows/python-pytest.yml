@@ -36,6 +36,10 @@ jobs:
       - name: Install pytest
         run: uv pip install pytest pytest-asyncio
 
+        # TODO confirm this works in CI
+      - name: Install models
+        run: bash -x ./setup_models.sh
+
       # Run tests
       - name: Run tests
         run: uv run pytest tests
