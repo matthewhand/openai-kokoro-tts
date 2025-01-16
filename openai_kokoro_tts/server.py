@@ -114,6 +114,19 @@ def text_to_speech():
         logging.error(f"Unhandled exception during TTS generation: {e}")
         return jsonify({"error": "Failed to generate speech"}), 500
 
+@app.route('/v1/models', methods=['GET'])
+def list_models():
+    """
+    List available Kokoro-TTS voice models.
+
+    Returns:
+        JSON response with available models.
+    """
+    models = tts_handler.get_voices()
+    if DEBUG_MODE:
+        logging.debug(f"Available models: {models}")
+    return jsonify({"models": models})
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 9090))
     logging.info(f"Kokoro-TTS API running on http://localhost:{port}")
