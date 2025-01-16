@@ -3,20 +3,25 @@ name = "openai-kokoro-tts"
 version = "0.1.0"
 description = "Present Kokoro TTS as an OpenAI API compatible endpoint"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = "==3.11.*"
 dependencies = [
     "flask>=3.1.0",
     "markupsafe>=3.0.2",
     "munch>=4.0.0",
-    "phonemizer>=3.3.0", 
+    "phonemizer>=3.3.0",
     "pydub>=0.25.1",
     "python-dotenv>=1.0.1",
     "scipy>=1.15.0",
-    "soundfile>=0.13.0",
     "transformers>=4.48.0",
     "onnxruntime>=1.15.0",
     "onnx>=1.13.0",
     "kokoro-onnx>=0.2.6",
+    "gevent>=24.11.1",
+]
+
+dev-dependencies = [
+    "pytest-asyncio>=0.24.0",
+    "pytest>=8.3.3"
 ]
 
 [project.optional-dependencies]
@@ -37,6 +42,7 @@ cpu = ["torch==2.0.1"]
 [tool.pytest.ini_options]
 pythonpath = [
     ".",          # Add project root
-    "models/kokoro",          # Add kokoro root
-    "openai_kokoro_tts" # Add the directory containing the app
+    "models/kokoro"          # Add kokoro root
 ]
+
+
