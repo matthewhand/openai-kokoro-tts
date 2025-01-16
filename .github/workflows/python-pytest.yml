@@ -38,6 +38,6 @@ jobs:
 
       # Run tests
       - name: Run tests
-        run: uv run pytest tests/unit
+        run: uv run pytest tests
         env:
           PYTHONPATH: ${{ github.workspace }}
