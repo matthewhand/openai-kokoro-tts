@@ -38,7 +38,7 @@ class TestOnnxTTSHandler(unittest.TestCase):
         mock_inference_session.return_value = mock_session_instance
 
         text = "Hello, this is a test message."
-        output_file = self.handler.generate_speech(text)
+        output_file = self.handler.generate_speech(text, response_format="mp3")  # Specify mp3 explicitly
         self.assertTrue(output_file.endswith(".mp3"))
         self.assertTrue(os.path.isfile(output_file))
         os.remove(output_file)
