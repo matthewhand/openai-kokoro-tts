@@ -1,9 +1,16 @@
 import os
 import subprocess
 import logging
+import re
 
-logging.basicConfig(level=logging.DEBUG)
+ALLOWED_FORMATS = {'mp3', 'wav', 'ogg', 'flac'}
+
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
 
 def convert_audio_format(input_file_path, output_format):
     """
@@ -11,19 +18,28 @@ def convert_audio_format(input_file_path, output_format):
 
     Args:
         input_file_path (str): Path to the input audio file.
-        output_format (str): Desired output format (e.g., 'mp3', 'wav').
+        output_format (str): Desired output format (must be in ALLOWED_FORMATS).
 
     Returns:
         str: Path to the converted audio file.
 
     Raises:
         RuntimeError: If the conversion process fails.
+        ValueError: For invalid input parameters.
     """
+    # Input validation
     if not os.path.exists(input_file_path):
         raise FileNotFoundError(f"Input file does not exist: {input_file_path}")
     
     if not output_format:
         raise ValueError("Output format must be specified.")
+    
+    output_format = output_format.lower()
+    if output_format not in ALLOWED_FORMATS:
+        raise ValueError(f"Disallowed format: {output_format}. Allowed formats: {ALLOWED_FORMATS}")
+    
+    if not re.match(r'^[a-zA-Z0-9]+$', output_format):
+        raise ValueError("Invalid characters in output format")
 
     # Generate a unique output file path
     base_name, _ = os.path.splitext(input_file_path)

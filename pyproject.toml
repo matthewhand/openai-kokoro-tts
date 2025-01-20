@@ -3,7 +3,8 @@ name = "openai-kokoro-tts"
 version = "0.1.0"
 description = "Present Kokoro TTS as an OpenAI API compatible endpoint"
 readme = "README.md"
-requires-python = "==3.11.*"
+requires-python = ">=3.11,<3.13"
+
 dependencies = [
     "flask>=3.1.0",
     "markupsafe>=3.0.2",
@@ -17,32 +18,27 @@ dependencies = [
     "onnx>=1.13.0",
     "kokoro-onnx>=0.2.6",
     "gevent>=24.11.1",
+    "soundfile>=0.12.1",
+    "librosa>=0.10.2",
+    "numba>=0.58.1",
+    "ffmpeg-python>=0.2.0"
 ]
 
-dev-dependencies = [
+[project.optional-dependencies]
+cpu = [
+    "torch>=2.2.0 ; platform_machine == 'aarch64'",
+    "numba>=0.58.1"
+]
+test = [
     "pytest-asyncio>=0.24.0",
     "pytest>=8.3.3"
 ]
 
-[project.optional-dependencies]
-cpu = ["torch==2.0.1"]
-
-#[[tool.uv.index]]
-#name = "pytorch-cpu"
-#url = "https://download.pytorch.org/whl/cpu"
-#
-#[[tool.uv.index]]
-#name = "pypi"
-#url = "https://pypi.org/simple"
-#
-#[tool.uv.sources]
-#torch = { index = "pytorch-cpu", extra = "cpu" }
-#markupsafe = { index = "pypi" }
+[tool.uv.sources]
+pytorch-cpu = { url = "https://download.pytorch.org/whl/cpu" }
 
 [tool.pytest.ini_options]
 pythonpath = [
     ".",          # Add project root
     "models/kokoro"          # Add kokoro root
 ]
-
-

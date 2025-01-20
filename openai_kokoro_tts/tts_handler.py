@@ -1,5 +1,6 @@
 import os
 import logging
+import numpy as np
 from kokoro_onnx import Kokoro
 
 DEBUG_MODE = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
@@ -38,12 +39,15 @@ class TTSHandler:
             raise ValueError("Input text cannot be empty.")
         
         voice = voice or self.default_voice
+        valid_formats = ['wav', 'mp3', 'ogg', 'flac']
+        if response_format.lower() not in valid_formats:
+            raise ValueError(f"Unsupported format: {response_format}")
 
         logging.debug(f"Generating audio with text: '{text}', voice: '{voice}'")
 
         try:
             # Generate audio
-            audio = self.kokoro.generate(text, voice)
+            audio = self._mock_text_to_audio() if DEBUG_MODE else self.kokoro.generate(text, voice)
 
             # Save the audio to a file
             output_file = f"output.{response_format}"
