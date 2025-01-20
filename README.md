@@ -164,7 +164,7 @@ If you're not on Ubuntu, follow these steps to set up the models manually:
 
 3. **Run the Flask Application**:
    ```bash
-   uv run openai_kokoro_tts/server.py
+   PYTHONPATH=. uv run openai_kokoro_tts/server.py
    ```
 
 The server will start, and the API will be available at `http://localhost:8000`.
