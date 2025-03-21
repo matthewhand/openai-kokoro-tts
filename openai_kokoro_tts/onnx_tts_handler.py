@@ -10,7 +10,7 @@ class OnnxTTSHandler:
         logging.info("Initializing ONNX TTSHandler.")
         self.default_voice = default_voice or os.getenv("DEFAULT_VOICE", "af_bella")
         self.valid_voices = ["af_bella", "af_sky"]
-        model_path = os.getenv("ONNX_MODEL_PATH", "models/kokoro/kokoro-v0_19.onnx")
+        model_path = os.getenv("ONNX_MODEL_PATH", "models/kokoro/kokoro.onnx")
 
         if not os.path.isfile(model_path):
             logging.error(f"ONNX model file not found: {model_path}")
