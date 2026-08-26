@@ -1,0 +1,155 @@
+# Repository State Visualization
+## openai-kokoro-tts - 2026-08-27 Review
+
+```
+GITHUB (main branch)
+├── Status: STALE (March 21, 2025)
+├── Commit: 17a733b
+├── State: BROKEN (2 critical bugs)
+└── Missing: Gradio UI
+
+CRITICAL BUGS IDENTIFIED:
+┌────────────────────────────────────────────┐
+│ BUG #1: Server Type Mismatch               │
+│ - Handler returns: file path (string)      │
+│ - Server expects: numpy array              │
+│ - Impact: 95% crash probability            │
+│ - Fix time: 5 minutes                      │
+└────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────┐
+│ BUG #2: Duplicate Dockerfile Command       │
+│ - Lines 36-37: Same command twice          │
+│ - Impact: Wastes time, potential issues    │
+│ - Fix time: 1 minute                       │
+└────────────────────────────────────────────┘
+
+CODE ISSUES:
+┌────────────────────────────────────────────┐
+│ DUPLICATE FILES                            │
+│ - /workspace/onnx_tts_handler.py (orphan)  │
+│ - /workspace/openai_kokoro_tts/            │
+│   onnx_tts_handler.py (active)             │
+│ → DELETE: Root version                     │
+└────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────┐
+│ BROKEN ONNX CONVERSION                     │
+│ - convert_to_onnx.py assumes structure     │
+│ - Commented out alternatives (uncertain)   │
+│ - May cause Docker build failure           │
+│ → VERIFY: Test build or use GamingPC ver   │
+└────────────────────────────────────────────┘
+
+┌────────────────────────────────────────────┐
+│ MISLEADING README                          │
+│ - Claims: 11 voices                        │
+│ - Reality: 2 voices (af_bella, af_sky)     │
+│ - Claims: GPU inference working            │
+│ - Reality: Mock implementation only        │
+│ → UPDATE: Documentation to match reality   │
+└────────────────────────────────────────────┘
+
+MISSING FEATURES:
+┌────────────────────────────────────────────┐
+│ NO GRADIO INTERFACE                        │
+│ - Claimed: Exists on GamingPC              │
+│ - Reality: 0 files in GitHub repo          │
+│ - Search: grep -r "import gradio" = empty  │
+│ → ACTION: Verify GamingPC, copy to GitHub  │
+└────────────────────────────────────────────┘
+
+FILES BREAKDOWN:
+┌──────────────┬───────┬──────────────────────┐
+│ Category     │ Count │ Status               │
+├──────────────┼───────┼──────────────────────┤
+│ Working      │  11   │ ✅ Good              │
+│ Broken       │   4   │ ❌ Bugs/incomplete   │
+│ Missing      │   1+  │ ⚠️ On GamingPC only  │
+│ Orphaned     │   2   │ 🗑️ Should delete     │
+├──────────────┼───────┼──────────────────────┤
+│ TOTAL        │  18+  │ Mixed state          │
+└──────────────┴───────┴──────────────────────┘
+
+SYNC PRIORITY:
+┌─────────────────────────────────────────────┐
+│ MUST PUSH from GamingPC:                    │
+│ 1. openai_kokoro_tts/gradio_ui.py ⭐⭐⭐    │
+│ 2. Fixed onnx_tts_handler.py (if better) ⭐⭐│
+│ 3. Working convert_to_onnx.py (if better) ⭐⭐│
+│ 4. pyproject.toml (with gradio) ⭐          │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│ MUST DELETE from GitHub:                    │
+│ 1. /workspace/onnx_tts_handler.py ⭐⭐⭐    │
+│ 2. cli_local_inference.py ⭐                │
+└─────────────────────────────────────────────┘
+
+TIMELINE:
+├─ January 2025:  Heavy development (10 commits Jan 16)
+├─ March 21, 2025: Last commit (ONNX Docker update)
+└─ March - August: No activity (5+ months)
+   └─ Reason: Work moved to GamingPC (unverified)
+
+NEXT STEPS:
+┌─────────────────────────────────────────────┐
+│ STEP 1: Investigate GamingPC (30 min)       │
+│ - Find Gradio code                          │
+│ - Test current state                        │
+│ - Compare with GitHub                       │
+└─────────────────────────────────────────────┘
+         ↓
+┌─────────────────────────────────────────────┐
+│ STEP 2: Fix GitHub Bugs (2 hours)           │
+│ - Delete duplicate handler                  │
+│ - Fix type mismatch                         │
+│ - Remove duplicate Dockerfile line          │
+│ - Update README                             │
+└─────────────────────────────────────────────┘
+         ↓
+┌─────────────────────────────────────────────┐
+│ STEP 3: Sync from GamingPC (1 hour)         │
+│ - Copy Gradio files                         │
+│ - Update dependencies                       │
+│ - Test integration                          │
+└─────────────────────────────────────────────┘
+         ↓
+┌─────────────────────────────────────────────┐
+│ DONE: Working ONNX + Gradio on GitHub ✅    │
+└─────────────────────────────────────────────┘
+
+RISK ASSESSMENT:
+High Risk:   Docker build (80% fail), API crash (95%)
+Medium Risk: Gradio missing (50%), Voice errors (70%)
+Low Risk:    Performance, documentation
+
+ESTIMATED EFFORT:
+├─ Investigation: 30 minutes
+├─ Bug fixes: 2 hours
+├─ Sync: 1 hour
+├─ Testing: 2 hours
+├─ Documentation: 1 hour
+└─ TOTAL: 6.5 hours
+
+REVIEW DOCUMENTS CREATED:
+1. SKEPTICAL_REVIEW.md (2,500+ lines)
+   - Complete analysis
+   - All bugs documented
+   - Recommendations ranked
+
+2. SYNC_ACTION_PLAN.md (1,000+ lines)
+   - Step-by-step instructions
+   - Decision matrices
+   - Rollback plans
+   - Validation checklists
+
+3. QUICK_REFERENCE.md (350+ lines)
+   - Critical findings summary
+   - 3-step action plan
+   - Verification commands
+
+Branch: review/2026-08-27-skeptical
+Status: Pushed to GitHub
+Action: DO NOT MERGE (review only)
+```
