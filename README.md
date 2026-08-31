@@ -16,7 +16,7 @@ Welcome to **openai-kokoro-tts**! This is a third-party application that provide
   - [Environment Configuration](#environment-configuration)
   - [Setting Up Models](#setting-up-models)
   - [Running the Application](#running-the-application)
-- [ONNX and Transformers Usage](#onnx-and-transformers-usage)
+- [ONNX providers (CPU default, GPU optional)](#onnx-providers-cpu-default-gpu-optional)
 - [API Endpoints](#api-endpoints)
   - [/v1/audio/speech](#v1audiospeech)
   - [/v1/models](#v1models)
@@ -171,28 +171,35 @@ The server will start, and the API will be available at `http://localhost:8000`.
 
 ---
 
-## ONNX and Transformers Usage
+## ONNX providers (CPU default, GPU optional)
 
-### Default: ONNX for CPU Inference
-By default, the service is configured to use ONNX for efficient CPU-based inference. No additional setup is required.
+The same `kokoro-v1.0.onnx` file runs everywhere. The ONNX Runtime **wheel** picks the hardware:
 
-To run the service in CPU-only mode:
+| `ONNX_PROVIDER` | EP | When to use |
+|---|---|---|
+| `auto` (default) | CUDA → DirectML → MIGraphX/ROCm → **CPU** | try accel, never fail boot |
+| `cpu` | CPU | AMD Linux Docker, NPU boxes, no GPU |
+| `cuda` | CUDA then CPU | NVIDIA + `onnxruntime-gpu` |
+| `dml` | DirectML then CPU | native Windows AMD (6600 XT) |
+| `rocm` / `migraphx` | ROCm/MIGraphX then CPU | Linux AMD with a ROCm ORT wheel |
+
+`onnxruntime` and `onnxruntime-gpu` cannot be installed together. The default image stays on the CPU wheel so ubuntu-max, 6600 XT Docker, and laptops keep working.
+
+NVIDIA Docker (not enough to set `runtime: nvidia` alone — the live ubuntu-gtx container has nvidia runtime but no `/dev/nvidia*` and no CUDA EP):
+
 ```bash
-docker-compose up
+cp docker-compose.override.yml.example docker-compose.override.yml
+# rebuild or replace the CPU ORT wheel with onnxruntime-gpu
+docker compose up -d --build
 ```
 
-### Enabling Transformers with GPU Acceleration
-To leverage GPU acceleration with transformers:
+Linux 6600 XT unofficial ROCm (host already using `HSA_OVERRIDE_GFX_VERSION=10.3.0`):
 
-1. Rename the example override file:
-   ```bash
-   mv docker-compose.override.yml.example docker-compose.override.yml
-   ```
-2. Start the service with GPU support:
-   ```bash
-   docker-compose up
-   ```
-   > **Note**: Docker automatically merges `docker-compose.override.yml` with `docker-compose.yml` if it detects it.
+```bash
+docker compose -f docker-compose.yml -f docker-compose.rocm.yml.example up -d
+```
+
+Force CPU on any host: `ONNX_PROVIDER=cpu`.
 
 ---
 
@@ -275,6 +282,8 @@ This project utilizes the **Kokoro-TTS** engine developed by [hexgrad](https://h
 ## TODO
 
 - [x] ONNX CPU inference
+- [x] Optional ONNX EPs (CUDA / DirectML / ROCm) with CPU fallback
+- [x] Optional ONNX EPs (CUDA / DirectML / ROCm) with CPU fallback
 - [ ] Transformers GPU inference
 - [ ] Simplify using kokoro-onnx
 

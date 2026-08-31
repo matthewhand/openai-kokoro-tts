@@ -13,3 +13,4 @@ services:
       - PORT=9090
       - DEFAULT_VOICE=${DEFAULT_VOICE:-af_sky}
       - REQUIRE_API_KEY=${REQUIRE_API_KEY:-True}
+      - ONNX_PROVIDER=${ONNX_PROVIDER:-auto}
