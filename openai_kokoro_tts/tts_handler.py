@@ -3,6 +3,8 @@ import logging
 import numpy as np
 from kokoro_onnx import Kokoro
 
+from openai_kokoro_tts.onnx_providers import create_with_fallback
+
 DEBUG_MODE = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
 
 class TTSHandler:
@@ -20,8 +22,10 @@ class TTSHandler:
         if not os.path.isfile(voices_path):
             raise FileNotFoundError(f"Voices file not found at {voices_path}")
 
-        # Initialize Kokoro-ONNX
-        self.kokoro = Kokoro(model_path, voices_path)
+        self.kokoro, self.onnx_provider = create_with_fallback(
+            lambda: Kokoro(model_path, voices_path)
+        )
+        logging.info("TTSHandler ready with ONNX provider %s", self.onnx_provider)
 
     def generate_speech(self, text, voice=None, response_format="mp3"):
         """

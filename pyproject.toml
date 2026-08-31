@@ -29,6 +29,11 @@ cpu = [
     "torch>=2.2.0 ; platform_machine == 'aarch64'",
     "numba>=0.58.1"
 ]
+# Mutually exclusive with the default onnxruntime CPU wheel. After installing
+# this extra, uninstall onnxruntime or the CUDA EP will not load.
+gpu = [
+    "onnxruntime-gpu>=1.15.0",
+]
 test = [
     "pytest-asyncio>=0.24.0",
     "pytest>=8.3.3"

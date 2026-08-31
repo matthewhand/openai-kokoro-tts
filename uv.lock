@@ -756,6 +756,25 @@ wheels = [
 ]
 
 [[package]]
+name = "onnxruntime-gpu"
+version = "1.29.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flatbuffers" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "protobuf" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c6/3e/d25cf1a72cde300ef6e8f3df63e59c9cc5daa515de687a9cd9881f8b4873/onnxruntime_gpu-1.29.0-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:de3caf93887ba4ad51c7d3cab04c7b464f9dd93c51047be5bfb413fd4a191e6a", size = 202176559 },
+    { url = "https://files.pythonhosted.org/packages/d5/83/07e4e4cef9329fcdbc42035f36f7a9128edd1281264b69054d0bd43a546c/onnxruntime_gpu-1.29.0-cp311-cp311-manylinux_2_34_aarch64.whl", hash = "sha256:6f5344dce3d6d41248d5135e159f5addb49114198ea4630c258855cb532a6688", size = 162094605 },
+    { url = "https://files.pythonhosted.org/packages/97/6d/08885c17cf4e6c8f7cc2171828d39e63c0809baaf1497529ed62637bf16d/onnxruntime_gpu-1.29.0-cp311-cp311-win_amd64.whl", hash = "sha256:fb6045d8623a5b9f949449bb4b93bab92e7f77578a2dc34420babacd16e2908c", size = 148175258 },
+    { url = "https://files.pythonhosted.org/packages/87/7b/764082683bbc3b3351a3864ffb87be11aa13642913f78569fa72b934e319/onnxruntime_gpu-1.29.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:8ccd052ca4de21b2a335f3503a283126163b6fab9dba29d1d9cbf3fa55c51d28", size = 202177606 },
+    { url = "https://files.pythonhosted.org/packages/fa/96/1be0b9711a614861fbf5c0c85c4da3aa2321f9da0b4734a717eb606f70ab/onnxruntime_gpu-1.29.0-cp312-cp312-manylinux_2_34_aarch64.whl", hash = "sha256:545d2966dd11208bbc98e67be4d92e54ecd793acc45c0532cc7bfd36f50692fa", size = 162121384 },
+    { url = "https://files.pythonhosted.org/packages/e0/b1/99a89878969f0bed05cc6be5ae95f75929fbb0fbb5884497814f2ec12ba0/onnxruntime_gpu-1.29.0-cp312-cp312-win_amd64.whl", hash = "sha256:a64aa7c3dd7fa6b29fa7bcb0439ebd204607a590d3ce02bb276672257da4a454", size = 148173233 },
+]
+
+[[package]]
 name = "openai-kokoro-tts"
 version = "0.1.0"
 source = { virtual = "." }
@@ -783,6 +802,9 @@ cpu = [
     { name = "numba" },
     { name = "torch", marker = "platform_machine == 'aarch64'" },
 ]
+gpu = [
+    { name = "onnxruntime-gpu" },
+]
 test = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -801,6 +823,7 @@ requires-dist = [
     { name = "numba", marker = "extra == 'cpu'", specifier = ">=0.58.1" },
     { name = "onnx", specifier = ">=1.13.0" },
     { name = "onnxruntime", specifier = ">=1.15.0" },
+    { name = "onnxruntime-gpu", marker = "extra == 'gpu'", specifier = ">=1.15.0" },
     { name = "phonemizer", specifier = ">=3.3.0" },
     { name = "pydub", specifier = ">=0.25.1" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3" },

@@ -1,0 +1,25 @@
+# Optional AMD ROCm override for Linux. Do NOT use as the default compose.
+#
+# RX 6600 XT (gfx1032) is not a first-class ORT GPU target. This file passes
+# /dev/kfd + /dev/dri and the unofficial HSA_OVERRIDE_GFX_VERSION=10.3.0
+# (pretend Navi 21) that some of these boxes already use for PyTorch.
+#
+# You still need an AMD ORT/MIGraphX wheel inside the image. The default
+# onnxruntime CPU wheel will keep running on CPU even with these devices.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
+#
+# Strix Halo iGPU (gfx1151) often wants 11.0.0 or 11.5.1 instead of 10.3.0.
+
+services:
+  app:
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-10.3.0}
+      - ONNX_PROVIDER=${ONNX_PROVIDER:-auto}
+      - HIP_VISIBLE_DEVICES=${HIP_VISIBLE_DEVICES:-0}
