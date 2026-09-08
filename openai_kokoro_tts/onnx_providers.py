@@ -30,6 +30,9 @@ _ALIASES = {
     "directml": "DmlExecutionProvider",
     "rocm": "ROCMExecutionProvider",
     "migraphx": "MIGraphXExecutionProvider",
+    "apu": "ROCMExecutionProvider",
+    "amdgpu": "ROCMExecutionProvider",
+    "hip": "ROCMExecutionProvider",
 }
 
 

@@ -26,7 +26,7 @@ def main():
         exit(1)
 
     # Load the Kokoro model
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = os.getenv("TORCH_DEVICE") or ("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Loading model from {args.model_path} on {device}...")
     model = build_model(args.model_path, device)
 

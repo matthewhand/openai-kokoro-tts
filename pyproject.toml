@@ -34,6 +34,9 @@ cpu = [
 gpu = [
     "onnxruntime-gpu>=1.15.0",
 ]
+rocm = [
+    "onnxruntime-rocm>=1.15.0",
+]
 test = [
     "pytest-asyncio>=0.24.0",
     "pytest>=8.3.3"

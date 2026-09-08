@@ -3,6 +3,27 @@ import logging
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
+def _resolve_torch_device() -> torch.device:
+    """Pick the best available torch device, respecting TORCH_DEVICE env var.
+
+    Priority: env override > ROCm/HIP > CUDA > CPU.
+    On AMD APUs and discrete AMDGPU cards, PyTorch built with ROCm reports
+    torch.cuda.is_available() == True (HIP maps to the CUDA API), so the
+    existing cuda check already works. This helper adds an explicit env var
+    escape hatch and clearer logging.
+    """
+    override = os.getenv("TORCH_DEVICE")
+    if override:
+        logging.info("TORCH_DEVICE override: %s", override)
+        return torch.device(override)
+    if torch.cuda.is_available():
+        # Works for both NVIDIA CUDA and AMD ROCm (HIP-backed)
+        kind = "ROCm/HIP" if hasattr(torch.version, "hip") and torch.version.hip else "CUDA"
+        logging.info("Using %s device (torch.cuda)", kind)
+        return torch.device("cuda")
+    logging.info("No GPU detected, using CPU")
+    return torch.device("cpu")
+
 class TransformersTTSHandler:
     """
     Text-to-Speech (TTS) Handler leveraging Hugging Face Transformers for GPU-accelerated inference.
@@ -22,7 +43,7 @@ class TransformersTTSHandler:
         logging.debug(f"Default voice set to: {self.default_voice}")
 
         # Set device for inference
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = _resolve_torch_device()
         logging.info(f"Using device: {self.device}")
 
         # Resolve and validate model path or name

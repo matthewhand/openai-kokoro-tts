@@ -1,18 +1,22 @@
-# Optional AMD ROCm override for Linux. Do NOT use as the default compose.
+# AMD ROCm override for APUs (e.g. Strix Halo) and discrete AMDGPU cards.
 #
-# RX 6600 XT (gfx1032) is not a first-class ORT GPU target. This file passes
-# /dev/kfd + /dev/dri and the unofficial HSA_OVERRIDE_GFX_VERSION=10.3.0
-# (pretend Navi 21) that some of these boxes already use for PyTorch.
-#
-# You still need an AMD ORT/MIGraphX wheel inside the image. The default
-# onnxruntime CPU wheel will keep running on CPU even with these devices.
-#
+# Usage:
+#   cp docker-compose.rocm.yml.example docker-compose.rocm.yml
 #   docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
 #
-# Strix Halo iGPU (gfx1151) often wants 11.0.0 or 11.5.1 instead of 10.3.0.
+# For APUs (integrated graphics), the same /dev/kfd + /dev/dri path works.
+# Set HSA_OVERRIDE_GFX_VERSION to match your hardware:
+#   - RDNA2 (RX 6000):  10.3.0
+#   - RDNA3 (RX 7000):  11.0.0
+#   - Strix Halo iGPU:  11.5.1
+#
+# Install the ROCm ORT wheel inside the container, or use Dockerfile.rocm.
 
 services:
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile.rocm
     devices:
       - /dev/kfd
       - /dev/dri
@@ -21,5 +25,9 @@ services:
       - render
     environment:
       - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-10.3.0}
-      - ONNX_PROVIDER=${ONNX_PROVIDER:-auto}
       - HIP_VISIBLE_DEVICES=${HIP_VISIBLE_DEVICES:-0}
+      - ONNX_PROVIDER=${ONNX_PROVIDER:-auto}
+      - TORCH_DEVICE=${TORCH_DEVICE:-cuda}
+    # iommu=pt may be needed for some APU configurations
+    # security_opt:
+    #   - seccomp:unconfined

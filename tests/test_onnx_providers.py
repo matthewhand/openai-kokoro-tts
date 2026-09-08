@@ -18,6 +18,9 @@ class TestOnnxProviders(unittest.TestCase):
         self.assertEqual(normalize_provider("dml"), "DmlExecutionProvider")
         self.assertEqual(normalize_provider("rocm"), "ROCMExecutionProvider")
         self.assertEqual(normalize_provider("migraphx"), "MIGraphXExecutionProvider")
+        self.assertEqual(normalize_provider("apu"), "ROCMExecutionProvider")
+        self.assertEqual(normalize_provider("amdgpu"), "ROCMExecutionProvider")
+        self.assertEqual(normalize_provider("hip"), "ROCMExecutionProvider")
 
     @patch("openai_kokoro_tts.onnx_providers.available_providers")
     def test_auto_cpu_only_wheel(self, mock_avail):
@@ -42,6 +45,34 @@ class TestOnnxProviders(unittest.TestCase):
         self.assertEqual(
             candidate_providers("auto"),
             ["DmlExecutionProvider", CPU_PROVIDER],
+        )
+
+    @patch("openai_kokoro_tts.onnx_providers.available_providers")
+    def test_auto_rocm(self, mock_avail):
+        mock_avail.return_value = ["ROCMExecutionProvider", CPU_PROVIDER]
+        self.assertEqual(
+            candidate_providers("auto"),
+            ["ROCMExecutionProvider", CPU_PROVIDER],
+        )
+
+    @patch("openai_kokoro_tts.onnx_providers.available_providers")
+    def test_auto_migraphx_and_rocm(self, mock_avail):
+        mock_avail.return_value = ["MIGraphXExecutionProvider", "ROCMExecutionProvider", CPU_PROVIDER]
+        self.assertEqual(
+            candidate_providers("auto"),
+            ["MIGraphXExecutionProvider", "ROCMExecutionProvider", CPU_PROVIDER],
+        )
+
+    def test_explicit_apu_alias(self):
+        self.assertEqual(
+            candidate_providers("apu"),
+            ["ROCMExecutionProvider", CPU_PROVIDER],
+        )
+
+    def test_explicit_amdgpu_alias(self):
+        self.assertEqual(
+            candidate_providers("amdgpu"),
+            ["ROCMExecutionProvider", CPU_PROVIDER],
         )
 
     def test_explicit_cuda_still_falls_back_to_cpu(self):

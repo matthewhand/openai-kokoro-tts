@@ -17,14 +17,45 @@ class OnnxTTSHandler:
             raise FileNotFoundError(f"ONNX model file not found at {model_path}")
 
         try:
-            self.session = ort.InferenceSession(model_path)
+            providers = self._select_providers()
+            self.session = ort.InferenceSession(model_path, providers=providers)
             self.input_name = self.session.get_inputs()[0].name
             self.output_name = self.session.get_outputs()[0].name
             self.required_inputs = [input.name for input in self.session.get_inputs()]
-            logging.info(f"ONNX model successfully loaded from {model_path}.")
+            active = self.session.get_providers()
+            logging.info(f"ONNX model loaded from {model_path} (providers: {active})")
         except Exception as e:
             logging.error(f"Failed to initialize ONNX Runtime session: {e}")
             raise RuntimeError("ONNX Runtime initialization failed.") from e
+
+    @staticmethod
+    def _select_providers():
+        """Return ordered ONNX EP list. Respects ONNX_PROVIDER env var."""
+        requested = os.getenv("ONNX_PROVIDER", "auto").strip().lower()
+        available = ort.get_available_providers()
+        # Preferred accelerator order
+        accel_map = {
+            "cuda": "CUDAExecutionProvider",
+            "rocm": "ROCMExecutionProvider",
+            "migraphx": "MIGraphXExecutionProvider",
+            "dml": "DmlExecutionProvider",
+            "directml": "DmlExecutionProvider",
+        }
+        if requested == "cpu":
+            return ["CPUExecutionProvider"]
+        if requested != "auto" and requested in accel_map:
+            ep = accel_map[requested]
+            return [ep, "CPUExecutionProvider"] if ep in available else ["CPUExecutionProvider"]
+        # Auto: try accelerators in priority order
+        accel_priority = [
+            "CUDAExecutionProvider",
+            "DmlExecutionProvider",
+            "MIGraphXExecutionProvider",
+            "ROCMExecutionProvider",
+        ]
+        selected = [p for p in accel_priority if p in available]
+        selected.append("CPUExecutionProvider")
+        return selected
 
     def generate_speech(self, text, voice=None, response_format="wav", speed=1.0):
         if not text:
