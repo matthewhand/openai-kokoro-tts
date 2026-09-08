@@ -1,0 +1,51 @@
+# ROCm-enabled build for AMD APUs and discrete AMDGPU cards.
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.rocm.yml build
+#   docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
+
+FROM rocm/pytorch:rocm6.2_ubuntu22.04_py3.10_pytorch_release_2.3.0
+
+RUN apt-get update && apt-get install -y \
+    git-lfs \
+    espeak-ng \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.local/bin:$PATH"
+
+WORKDIR /app
+
+COPY pyproject.toml ./
+COPY openai_kokoro_tts/ openai_kokoro_tts/
+COPY tests/ tests/
+
+# Clone the Kokoro-82M model repository
+RUN git lfs install && git clone https://huggingface.co/hexgrad/Kokoro-82M /app/models/kokoro
+
+# Verify model files and download voices
+RUN if [ -z "$(find /app/models/kokoro -maxdepth 1 -name '*.pth')" ]; then \
+      echo "Error: No .pth file found in /app/models/kokoro." && exit 1; \
+    fi && \
+    curl -L "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.json" -o /app/models/kokoro/voices.json
+
+COPY openai_kokoro_tts/convert_to_onnx.py openai_kokoro_tts/
+
+# ROCm image already has PyTorch; install onnxruntime for ROCm
+RUN pip install onnxruntime-rocm>=1.15.0 || pip install onnxruntime>=1.15.0
+
+# Run ONNX conversion on CPU (always works)
+RUN python /app/openai_kokoro_tts/convert_to_onnx.py && \
+    mv /app/openai_kokoro_tts/kokoro.onnx /app/models/kokoro/
+
+ENV UV_SYSTEM_PYTHON=1
+ENV PATH="/app/.venv/bin:$PATH"
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
+# Sync remaining Python deps (skip torch/ort since already installed)
+RUN uv sync --no-install-project || uv pip install -r pyproject.toml
+
+EXPOSE 8000
+
+CMD ["python", "openai_kokoro_tts/server.py"]

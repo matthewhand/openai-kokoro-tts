@@ -3,6 +3,8 @@ import logging
 import numpy as np
 from kokoro_onnx import Kokoro
 
+from openai_kokoro_tts.onnx_providers import create_with_fallback
+
 DEBUG_MODE = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
 
 class TTSHandler:
@@ -20,10 +22,12 @@ class TTSHandler:
         if not os.path.isfile(voices_path):
             raise FileNotFoundError(f"Voices file not found at {voices_path}")
 
-        # Initialize Kokoro-ONNX
-        self.kokoro = Kokoro(model_path, voices_path)
+        self.kokoro, self.onnx_provider = create_with_fallback(
+            lambda: Kokoro(model_path, voices_path)
+        )
+        logging.info("TTSHandler ready with ONNX provider %s", self.onnx_provider)
 
-    def generate_speech(self, text, voice=None, response_format="mp3"):
+    def generate_speech(self, text, voice=None, response_format="mp3", speed=1.0):
         """
         Generate speech audio from the provided text using a specific voice.
 
@@ -31,6 +35,7 @@ class TTSHandler:
             text (str): The input text to convert to speech.
             voice (str, optional): The voice to use (default is set in the environment or "af_bella").
             response_format (str, optional): The desired output format (default: "mp3").
+            speed (float, optional): Speech speed multiplier (default: 1.0).
 
         Returns:
             str: Path to the generated audio file.
@@ -46,8 +51,14 @@ class TTSHandler:
         logging.debug(f"Generating audio with text: '{text}', voice: '{voice}'")
 
         try:
-            # Generate audio
-            audio = self._mock_text_to_audio() if DEBUG_MODE else self.kokoro.generate(text, voice)
+            # Generate audio using Kokoro
+            if DEBUG_MODE:
+                audio = self._mock_text_to_audio()
+            elif hasattr(self.kokoro, "create"):
+                res = self.kokoro.create(text, voice, speed=speed)
+                return res
+            else:
+                audio = self.kokoro.generate(text, voice)
 
             # Save the audio to a file
             output_file = f"output.{response_format}"
@@ -59,3 +70,9 @@ class TTSHandler:
         except Exception as e:
             logging.error(f"Error during TTS generation: {e}")
             raise RuntimeError("Failed to generate speech.") from e
+
+    def get_voices(self):
+        if hasattr(self.kokoro, "get_voices"):
+            return self.kokoro.get_voices()
+        return ["af_bella", "af_sky"]
+
