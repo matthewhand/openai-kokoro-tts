@@ -8,8 +8,8 @@ import numpy as np
 class OnnxTTSHandler:
     def __init__(self, default_voice=None, kokoro_factory=None):
         self.default_voice = default_voice or os.getenv("DEFAULT_VOICE", "af_bella")
-        model_path = os.getenv("ONNX_MODEL_PATH", "models/kokoro/kokoro-v1.0.onnx")
-        voices_path = os.getenv("VOICES_PATH", "models/kokoro/voices-v1.0.bin")
+        model_path = os.getenv("ONNX_MODEL_PATH", "models/kokoro/kokoro-v0_19.onnx")
+        voices_path = os.getenv("VOICES_PATH", "models/kokoro/voices.json")
         if not os.path.isfile(model_path):
             raise FileNotFoundError(f"ONNX model file not found: {model_path}")
         if not os.path.isfile(voices_path):

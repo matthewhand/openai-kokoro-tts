@@ -12,6 +12,6 @@ services:
       PORT: "9090"
       HOST: "0.0.0.0"
       DEFAULT_VOICE: ${DEFAULT_VOICE:-af_bella}
-      ONNX_MODEL_PATH: /app/models/kokoro/kokoro-v1.0.onnx
-      VOICES_PATH: /app/models/kokoro/voices-v1.0.bin
+      ONNX_MODEL_PATH: /app/models/kokoro/kokoro-v0_19.onnx
+      VOICES_PATH: /app/models/kokoro/voices.json
       ONNX_PROVIDER: CPUExecutionProvider
