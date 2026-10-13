@@ -15,6 +15,11 @@ log = logging.getLogger(__name__)
 
 def create_app(handler=None):
     app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
+
+    @app.errorhandler(413)
+    def request_too_large(_exc):
+        return jsonify({"error": "Request body too large"}), 413
     model = handler
     model_lock = threading.Lock()
 
@@ -51,8 +56,8 @@ def create_app(handler=None):
             audio_bytes, mime = encode_audio(samples, sample_rate, response_format)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-        except Exception:
-            log.exception("Speech generation failed")
+        except Exception as exc:
+            log.error("Speech generation failed (%s)", type(exc).__name__)
             return jsonify({"error": "Speech generation failed"}), 500
         return send_file(io.BytesIO(audio_bytes), mimetype=mime, as_attachment=True,
                          download_name=f"speech.{response_format}")
@@ -62,8 +67,8 @@ def create_app(handler=None):
     def list_models():
         try:
             voices = get_model().get_voices()
-        except Exception:
-            log.exception("Voice list unavailable")
+        except Exception as exc:
+            log.error("Voice list unavailable (%s)", type(exc).__name__)
             return jsonify({"error": "Voice list unavailable"}), 503
         return jsonify({"object": "list", "data": [{"id": v, "object": "model"} for v in voices], "models": voices})
 

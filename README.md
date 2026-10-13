@@ -27,19 +27,23 @@ Branch: [`work/kokoro-cpu-hardening-20261013`](https://github.com/matthewhand/op
 | Kokoro adapter | Calls `Kokoro.create()`, returns samples plus their true sample rate; enumerates voices | Real model, tokenizer, phonemizer and installed runtime not exercised |
 | Asset versions | Defaults to `kokoro-v0_19.onnx` and `voices.json`, matching lockfile's `kokoro-onnx==0.2.6` | Check file hashes, actual voice names and inference on a permitted test host |
 | WAV and MP3 | Writes audio in memory; WAV uses the returned rate; MP3 is encoded through local FFmpeg | Decodability and client compatibility against real model audio |
-| HTTP/auth | Both routes use Bearer authorization; validates JSON, voice, format, speed and text length | Real Flask end-to-end integration and stress tests |
-| Docker | Python 3.12 CPU-first source draft, localhost-only published port, read-only model mount and required API key | No clean image build, complete dependency installation or model-backed container run |
+| HTTP/auth | Both routes use Bearer authorization; validates JSON, voice, format, speed and text length | Real Flask test-client synthetic requests passed; model-backed HTTP, load tests and target Flask version remain unverified |
+| Docker | Python 3.12 CPU-first source draft, localhost-only published port, read-only model mount and required API key | Offline `docker compose config` inspected successfully; no clean image build, dependency installation or model-backed container run |
 | CI | Hosted GitHub Actions workflow removed on this branch | Local tests and external independent review remain release gates |
 
-A local, hermetic synthetic regression run reported **15 passing cases** for the planned source changes, including WAV sample rate, mock voice API, invalid inputs, auth and an actual FFmpeg conversion of synthetic audio. These tests do **not** run a Kokoro model. The committed tests and branch as a whole have not yet been independently executed from a fresh checkout.
+**Cycle 3 local check:** A clean checkout pinned to `f8eca6a3c882` was used as the starting point. After bounded source-only changes, **20/20 tests passed locally** with real Flask test-client requests, synthetic handler outputs, authenticated voice listing, invalid JSON and size limits, redacted error logging, separate concurrent clients, a fail-closed missing-key check, WAV header/rate checks, and MP3 decoding verified by FFprobe. The repo was not installed, built, run against a Kokoro model, or deployed. Tests ran on preinstalled **Python 3.10.12 / Flask 2.3.2 / NumPy 2.2.6**, outside the declared supported **Python 3.11–3.12 / Flask >=3.1** environment. Python 3.12 AST syntax parsing passed, but dependency-backed Python 3.12 tests remain outstanding. These results are local synthetic evidence, **not** independent release acceptance.
 
 Once test dependencies and FFmpeg are already installed locally, the intended source-only check is:
 
 ```bash
-python -m unittest discover -s tests -p 'test_onnx_tts_handler.py' -v
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. python -B -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
 Do not run model setup, build containers or deploy based on the synthetic result alone. Model assets remain external; no download or checksum manifest has been proven for the branch.
+
+### Cycle 3 bounded safety corrections
+
+The isolated branch now enforces a **16 KiB JSON request-body limit** with a structured HTTP 413 response and logs exception *types*, not arbitrary error messages, to reduce disclosure risk. Handler, audio and native Flask tests are separated. The API still requires further review of rate limits, inference timeouts, model assets, privacy retention and actual compatibility.
 
 ## CPU evidence recorded independently of public main
 
