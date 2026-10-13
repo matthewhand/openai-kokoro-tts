@@ -18,6 +18,29 @@
 
 This status is based on source inspection rather than executing a model or publishing a release.
 
+## Isolated CPU-hardening branch (work in progress)
+
+Branch: [`work/kokoro-cpu-hardening-20261013`](https://github.com/matthewhand/openai-kokoro-tts/tree/work/kokoro-cpu-hardening-20261013), based on `main` at `17a733bac108`. **None of these corrections are in public `main` yet.**
+
+| Area | Source-only branch improvement | Remaining verification |
+| --- | --- | --- |
+| Kokoro adapter | Calls `Kokoro.create()`, returns samples plus their true sample rate; enumerates voices | Real model, tokenizer, phonemizer and installed runtime not exercised |
+| Asset versions | Defaults to `kokoro-v0_19.onnx` and `voices.json`, matching lockfile's `kokoro-onnx==0.2.6` | Check file hashes, actual voice names and inference on a permitted test host |
+| WAV and MP3 | Writes audio in memory; WAV uses the returned rate; MP3 is encoded through local FFmpeg | Decodability and client compatibility against real model audio |
+| HTTP/auth | Both routes use Bearer authorization; validates JSON, voice, format, speed and text length | Real Flask end-to-end integration and stress tests |
+| Docker | Python 3.12 CPU-first source draft, localhost-only published port, read-only model mount and required API key | No clean image build, complete dependency installation or model-backed container run |
+| CI | Hosted GitHub Actions workflow removed on this branch | Local tests and external independent review remain release gates |
+
+A local, hermetic synthetic regression run reported **15 passing cases** for the planned source changes, including WAV sample rate, mock voice API, invalid inputs, auth and an actual FFmpeg conversion of synthetic audio. These tests do **not** run a Kokoro model. The committed tests and branch as a whole have not yet been independently executed from a fresh checkout.
+
+Once test dependencies and FFmpeg are already installed locally, the intended source-only check is:
+
+```bash
+python -m unittest discover -s tests -p 'test_onnx_tts_handler.py' -v
+```
+
+Do not run model setup, build containers or deploy based on the synthetic result alone. Model assets remain external; no download or checksum manifest has been proven for the branch.
+
 ## CPU evidence recorded independently of public main
 
 [Issue #1](https://github.com/matthewhand/openai-kokoro-tts/issues/1) records two live speech responses on **1 September 2026**:
@@ -29,7 +52,7 @@ This status is based on source inspection rather than executing a model or publi
 
 These are individual observations from existing containers, **not benchmarks**, not GPU inference, and not verification of the checked-in Dockerfile or `main` implementation. The recorded evidence does not pin a deployed source revision or image digest.
 
-## Known release blockers
+## Known release blockers on public main
 
 1. **Speech output:** `openai_kokoro_tts/onnx_tts_handler.py` returns an output **path**; `server.py` treats it as raw audio samples. Requested format and returned bytes can disagree.
 2. **Voice API:** `server.py` calls a missing `get_voices()` method. `/v1/models` also lacks the speech route's authentication decorator.
@@ -54,7 +77,7 @@ Package metadata currently declares Python **3.11–3.12**. The checked-in sampl
 
 ## Privacy and security
 
-The existing ONNX handler writes generated audio files to disk; a previous assertion that no data is stored was inaccurate. Review text logging, audio retention, filesystem permissions and concurrent file access before use. The speech endpoint checks an API key when enabled, but `/v1/models` does not apply the same decorator. The default Compose configuration binds a host network port. These are **not production security guarantees**.
+The public-main ONNX handler writes generated audio files to disk; a previous assertion that no data is stored was inaccurate. The isolated hardening branch instead returns in-memory output, which still requires verification of logging and operational retention. Review text logging, audio retention, filesystem permissions and concurrent file access before use. The speech endpoint checks an API key when enabled, but `/v1/models` does not apply the same decorator. The public-main Compose configuration binds a host network port. The isolated branch binds the forwarded port to localhost only. These are **not production security guarantees**.
 
 Kokoro model weights, voices and dependencies can carry licenses distinct from this repository's [MIT license](LICENSE). Review and attribute them separately.
 
