@@ -1,15 +1,17 @@
-version: '3.8'
-
 services:
   app:
     build:
       context: .
     ports:
-      - '9090:9090'
+      - "127.0.0.1:9090:9090"
     volumes:
-      - ./cache:/root/.cache
+      - ./models:/app/models:ro
     environment:
-      - API_KEY=${API_KEY:-your_api_key_here}
-      - PORT=9090
-      - DEFAULT_VOICE=${DEFAULT_VOICE:-af_sky}
-      - REQUIRE_API_KEY=${REQUIRE_API_KEY:-True}
+      API_KEY: ${API_KEY:?Set a strong non-default API_KEY in .env}
+      REQUIRE_API_KEY: "true"
+      PORT: "9090"
+      HOST: "0.0.0.0"
+      DEFAULT_VOICE: ${DEFAULT_VOICE:-af_bella}
+      ONNX_MODEL_PATH: /app/models/kokoro/kokoro-v1.0.onnx
+      VOICES_PATH: /app/models/kokoro/voices-v1.0.bin
+      ONNX_PROVIDER: CPUExecutionProvider

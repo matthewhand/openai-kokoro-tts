@@ -1,51 +1,23 @@
-# Use an Astral uv image with Python 3.13
-FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim
+# CPU-first development image. Requires model files mounted at runtime.
+# Source-only draft: a fresh build and model-backed run are NOT yet verified.
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
-# Install Node.js, npm, and additional system dependencies
-RUN apt-get update && apt-get install -y \
-    git-lfs \
-    espeak-ng \
-    curl \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    espeak-ng ffmpeg ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-
-# Set working directory inside the container
 WORKDIR /app
+COPY pyproject.toml uv.lock README.md ./
+COPY openai_kokoro_tts/ ./openai_kokoro_tts/
 
-# Copy project files
-COPY pyproject.toml ./ 
-COPY openai_kokoro_tts/ openai_kokoro_tts/
-COPY tests/ tests/
+RUN uv sync --frozen --no-dev
 
-# Clone the Kokoro-82M model repository
-RUN git lfs install && git clone https://huggingface.co/hexgrad/Kokoro-82M /app/models/kokoro
+ENV PYTHONPATH=/app \
+    PATH=/app/.venv/bin:$PATH \
+    HOST=0.0.0.0 \
+    PORT=9090 \
+    ONNX_PROVIDER=CPUExecutionProvider
+EXPOSE 9090
 
-# Inject setup_models.sh logic directly (future-proofed to check for any .pth file)
-RUN if [ -z "$(find /app/models/kokoro -maxdepth 1 -name '*.pth')" ]; then \
-      echo "Error: No .pth file found in /app/models/kokoro." && exit 1; \
-    fi && \
-    curl -L "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.json" -o /app/models/kokoro/voices.json && \
-    echo "Model and dependencies have been successfully set up! Model directory: /app/models/kokoro, Voice directory: voices"
-
-# Copy the conversion script
-COPY openai_kokoro_tts/convert_to_onnx.py openai_kokoro_tts/
-
-# Install Python dependencies for ONNX conversion
-RUN uv pip install --system torch onnxruntime
-# Run the conversion script and move the output to the correct location
-RUN python /app/openai_kokoro_tts/convert_to_onnx.py && mv /app/openai_kokoro_tts/kokoro.onnx /app/models/kokoro/
-RUN python openai_kokoro_tts/convert_to_onnx.py && mv /app/openai_kokoro_tts/kokoro.onnx /app/models/kokoro/
-
-# Set environment variables to prioritize uv and Python path
-ENV UV_SYSTEM_PYTHON=1
-ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app:${PYTHONPATH}"
-
-# Initialize uv environment and add dependencies
-RUN uv sync
-
-# Expose the application port (default 8000, configurable via $PORT)
-EXPOSE 8000
-
-# Run the Flask server
-CMD uv run openai_kokoro_tts/server.py
+# No model downloads, startup installs, model conversion or output persistence.
+CMD ["uv", "run", "--no-sync", "python", "-m", "openai_kokoro_tts.server"]
