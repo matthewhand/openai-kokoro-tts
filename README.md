@@ -1,285 +1,87 @@
 # openai-kokoro-tts
 
-<img src="assets/images/kokoro-logo.jpg" alt="Project Logo" width="400"/>
+**Experimental local text-to-speech API adapter for [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M).** This is an independently developed OpenAI-style integration, not an OpenAI product or a fork of the Kokoro model.
 
-Welcome to **openai-kokoro-tts**! This is a third-party application that provides an OpenAI API-compatible endpoint for generating high-quality text-to-speech (TTS) audio using **Kokoro-TTS**, a flexible and powerful TTS engine developed by [hexgrad](https://huggingface.co/hexgrad/Kokoro-82M). This project can be used as a drop-in replacement for various OpenAI client applications, such as open-webui, enabling seamless integration of Kokoro-TTS into your existing workflows.
+> **Release status (13 October 2026): repair required.** The public `main` branch has known functional and packaging defects. This README documents what is checked in and what has been observed separately; it is **not** a guarantee that the repository builds or generates speech from a fresh checkout.
 
----
+## What is actually available?
 
-## Table of Contents
+| Area | Public `main` at `17a733bac108` | Evidence / limitation |
+| --- | --- | --- |
+| Flask routes | `POST /v1/audio/speech`, `GET /v1/models` exist | Broken server/handler contracts prevent an end-to-end claim |
+| ONNX inference | ONNX Runtime session code exists | Character-code tokens and a placeholder voice embedding are not verified Kokoro conditioning |
+| Audio output | WAV wrapper and file-writing handler exist | Handler returns a filename but Flask expects samples; advertised formats do not match encoding |
+| Voice list | Route exists | Imported handler has no `get_voices()` method |
+| Docker | Compose and Dockerfile exist | Build/runtime version and model-conversion paths conflict |
+| Tests | Mock-based ONNX handler tests exist | No reproduced clean installation or model-backed end-to-end API acceptance test |
+| GPU support | **Not on main** | Experimental [PR #2](https://github.com/matthewhand/openai-kokoro-tts/pull/2) is still open |
 
-- [Prerequisites](#prerequisites)
-- [Deployment Instructions](#deployment-instructions)
-  - [Using Docker Compose (Recommended)](#using-docker-compose-recommended)
-- [Development Setup with `uv`](#development-setup-with-uv)
-  - [Installation](#installation)
-  - [Environment Configuration](#environment-configuration)
-  - [Setting Up Models](#setting-up-models)
-  - [Running the Application](#running-the-application)
-- [ONNX and Transformers Usage](#onnx-and-transformers-usage)
-- [API Endpoints](#api-endpoints)
-  - [/v1/audio/speech](#v1audiospeech)
-  - [/v1/models](#v1models)
-- [Responsible Use](#responsible-use)
-- [Privacy Notice](#privacy-notice)
-- [AI Disclosure](#ai-disclosure)
-- [Acknowledgments](#acknowledgments)
-- [TODO](#todo)
-- [License](#license)
+This status is based on source inspection rather than executing a model or publishing a release.
 
----
+## CPU evidence recorded independently of public main
 
-## Prerequisites
+[Issue #1](https://github.com/matthewhand/openai-kokoro-tts/issues/1) records two live speech responses on **1 September 2026**:
 
-Before getting started, ensure you have the following installed on your system:
+| Environment | Recorded result | Actual execution provider |
+| --- | --- | --- |
+| Linux / GTX 1080 | HTTP 200, ID3 MP3, **1.02 s** | ONNX Runtime 1.29 CPU |
+| Linux / AMD GPUs | HTTP 200, ID3 MP3, **4.08 s** | ONNX Runtime 1.28 CPU |
 
-- **Git**: For cloning the repository.
-- **Python 3.10 or newer**: Required for development.
-- **Docker**: Optional but recommended for production deployment.
+These are individual observations from existing containers, **not benchmarks**, not GPU inference, and not verification of the checked-in Dockerfile or `main` implementation. The recorded evidence does not pin a deployed source revision or image digest.
 
----
+## Known release blockers
 
-## Deployment Instructions
+1. **Speech output:** `openai_kokoro_tts/onnx_tts_handler.py` returns an output **path**; `server.py` treats it as raw audio samples. Requested format and returned bytes can disagree.
+2. **Voice API:** `server.py` calls a missing `get_voices()` method. `/v1/models` also lacks the speech route's authentication decorator.
+3. **Model pipeline:** Handwritten character-code tokens and a fixed fake style embedding do not constitute verified Kokoro phonemization and voice conditioning.
+4. **Docker:** Image uses Python **3.13** while package metadata declares `>=3.11,<3.13`; conversion output paths differ and conversion is invoked twice.
+5. **Safety and reliability:** Fixed output filename, inconsistent authentication, incomplete input limits/validation and unverified concurrent-request behavior.
+6. **Coverage:** No clean-install, real-audio, negative-authentication, output-format or resource-limit acceptance evidence for public `main`.
 
-### Using Docker Compose (Recommended)
+### Installation and API expectations
 
-```bash
-git clone https://github.com/matthewhand/openai-kokoro-tts
-cd openai-kokoro-tts
-docker-compose up --build -d
-```
+**There is currently no verified public-main quick start.** Do not use the older `docker compose up --build` instructions as proof of a working release, expose the unverified service to the internet, or submit confidential text.
 
-The API will be available at `http://localhost:9090`.
+The *intended* API request includes `input`, optional `voice`, `speed` and `response_format`. In source, `/v1/audio/speech` defaults to voice `af_bella` and format `wav`; the server's default port is **9090**, not 8000. Advertised MP3, WAV and other formats are **not all implemented correctly**. Treat both routes as experimental until source-level repairs and local end-to-end checks are documented.
 
----
+Package metadata currently declares Python **3.11–3.12**. The checked-in sample configuration includes an unusable placeholder API key; supply a non-default secret before any isolated test. The repository's model setup script fetches assets, but does not establish that the required ONNX/voice files are usable.
 
-## Development Setup with `uv`
+## Experimental optional GPU work — separate branch
 
-`uv` is a modern tool for managing Python environments, dependencies, and project workflows. Follow these steps to set up your development environment with `uv`.
+[PR #2, `feat/onnx-provider-auto`](https://github.com/matthewhand/openai-kokoro-tts/pull/2) at `e5538000a192` proposes CPU fallback and opt-in CUDA, DirectML, ROCm and MIGraphX execution-provider selection. It includes mock-backed provider-selection tests and platform-specific container examples.
 
----
+**The PR is unmerged, does not repair the existing end-to-end speech-output contract, and is not proof of successful GPU inference.** Do not treat its README edits or compose examples as instructions for public `main`. Preserve CPU-only operation as the baseline until independent hardware validation. The separate Transformers handler generates placeholder audio and is not a supported backend.
 
-### Installation
+## Privacy and security
 
-#### **macOS and Linux**
+The existing ONNX handler writes generated audio files to disk; a previous assertion that no data is stored was inaccurate. Review text logging, audio retention, filesystem permissions and concurrent file access before use. The speech endpoint checks an API key when enabled, but `/v1/models` does not apply the same decorator. The default Compose configuration binds a host network port. These are **not production security guarantees**.
 
-Run the following command to install `uv`:
+Kokoro model weights, voices and dependencies can carry licenses distinct from this repository's [MIT license](LICENSE). Review and attribute them separately.
 
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+## Release acceptance gates
 
-Alternatively, use Homebrew:
+A future release must independently verify all of the following, with a pinned source revision:
 
-```bash
-brew install uv
-```
+- Fresh, repeatable Python 3.11/3.12 CPU installation with checksummed model and voice assets.
+- A short synthetic text request returning **decodable, correctly labeled audio** with correct sample rate, duration and requested format.
+- Authenticated voice/model listing; consistent 401 responses and no default or logged secrets.
+- Validated text length, voice, speed, JSON body, resource limits and failure responses.
+- Concurrent requests without filename collisions or cross-request leakage; documented deletion/retention behavior.
+- Offline/local synthetic regressions, plus separately approved, low-load real model checks; no hosted GitHub CI required.
+- GPU claims only after optional-provider tests run on their actual hardware.
 
-#### **Windows**
+**No gate is considered passed solely because the code compiles, an old container replied 200, or a mocked test passes.**
 
-Run this command in PowerShell to install `uv`:
+## Development direction
 
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
+1. Restore a consistent CPU audio generation and response contract, plus local synthetic HTTP tests.
+2. Repair build and model setup; perform a clean CPU smoke test.
+3. Harden authentication, input boundaries, concurrency and privacy.
+4. Independently reconcile GPU PR #2 against the CPU baseline.
+5. Publish a tested quick start and lift the experimental designation only after all release gates pass.
 
----
+## Attribution and responsible use
 
-### Environment Configuration
+[Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) is developed by hexgrad and its contributors; this project is a separate API adapter. Generated audio is synthetic. Do not use it for harmful impersonation, deception or violations of privacy.
 
-1. **Copy `.env.example` to `.env`**:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. **Update the `.env` File**:
-   - Set a secure value for `API_KEY` to protect your API endpoints:
-     ```env
-     API_KEY=your_secure_api_key_here
-     ```
-   - Adjust other settings (e.g., `PORT`, `MODEL_PATH`) based on your requirements.
-
----
-
-### Setting Up Models
-
-#### **Ubuntu (Automated Setup)**
-
-Run the included `setup_models.sh` script:
-
-```bash
-bash setup_models.sh
-```
-
-This script will:
-1. Verify and install required tools such as Git LFS and `espeak-ng`.
-2. Clone the Kokoro-82M model repository into the `models/kokoro` directory.
-3. Create the `voices` directory (if missing).
-
-#### **macOS and Windows (Manual Setup)**
-
-If you're not on Ubuntu, follow these steps to set up the models manually:
-
-1. **Install Git LFS**:
-   - **macOS**:
-     ```bash
-     brew install git-lfs
-     git lfs install
-     ```
-   - **Windows**:
-     Download and install Git LFS from [Git LFS website](https://git-lfs.github.com/).
-
-2. **Clone the Kokoro-82M Repository**:
-   ```bash
-   git clone https://huggingface.co/hexgrad/Kokoro-82M models/kokoro
-   ```
-
-3. **Verify Directory Structure**:
-   Ensure the `models/kokoro/kokoro-v0_19.pth` file exists.
-
-4. **Install System Dependencies**:
-   - **macOS**:
-     ```bash
-     brew install espeak-ng
-     ```
-   - **Windows**:
-     Install [espeak-ng](https://github.com/espeak-ng/espeak-ng).
-
----
-
-### Running the Application
-
-1. **(Optional) Create a Virtual Environment**:
-   Navigate to the project directory and create a `uv` project virtual environment:
-   ```bash
-   uv venv .venv
-   . .venv/bin/activate
-   ```
-
-2. **Sync Dependencies**:
-   Install all Python dependencies specified in the `pyproject.toml`:
-   ```bash
-   uv sync
-   ```
-
-3. **Run the Flask Application**:
-   ```bash
-   PYTHONPATH=. uv run openai_kokoro_tts/server.py
-   ```
-
-The server will start, and the API will be available at `http://localhost:8000`.
-
----
-
-## ONNX and Transformers Usage
-
-### Default: ONNX for CPU Inference
-By default, the service is configured to use ONNX for efficient CPU-based inference. No additional setup is required.
-
-To run the service in CPU-only mode:
-```bash
-docker-compose up
-```
-
-### Enabling Transformers with GPU Acceleration
-To leverage GPU acceleration with transformers:
-
-1. Rename the example override file:
-   ```bash
-   mv docker-compose.override.yml.example docker-compose.override.yml
-   ```
-2. Start the service with GPU support:
-   ```bash
-   docker-compose up
-   ```
-   > **Note**: Docker automatically merges `docker-compose.override.yml` with `docker-compose.yml` if it detects it.
-
----
-
-## API Endpoints
-
-### `/v1/audio/speech`
-
-Primary route for generating speech from text input. Requires an API key in the request header as a Bearer token.
-
-- **URL**: `/v1/audio/speech`
-- **Method**: `POST`
-- **Headers**: `Authorization: Bearer <API_KEY>`
-- **Data (JSON)**:
-  - `input` (string): The input text to convert to speech.
-  - `voice` (string, optional): Voice model to use (default: "af_bella").
-  - `response_format` (string, optional): Output audio format (default: `mp3`).
-
----
-
-### `/v1/models`
-
-Route for listing all available Kokoro-TTS voice models.
-
-- **URL**: `/v1/models`
-- **Method**: `GET`
-- **Headers**: `Authorization: Bearer <API_KEY>`
-- **Response**:
-  - A JSON object containing an array of available models.
-- **Example Response**:
-    ```json
-    {
-      "models": [
-        "af",
-        "af_bella",
-        "af_sarah",
-        "am_adam",
-        "am_michael",
-        "bf_emma",
-        "bf_isabella",
-        "bm_george",
-        "bm_lewis",
-        "af_nicole",
-        "af_sky"
-      ]
-    }
-    ```
-
----
-
-## Responsible Use
-
-The openai-kokoro-tts project is designed for lawful, ethical, and responsible use. Users are prohibited from deploying this tool for:
-- Misleading or impersonating individuals.
-- Generating disinformation or fraudulent content.
-- Violating the privacy or rights of others.
-- Harassing, bullying, or otherwise harming individuals or communities.
-
-By using this project, you agree to comply with all applicable laws and OpenAI's usage policies.
-
----
-
-## Privacy Notice
-
-This tool processes text inputs to generate speech and does not store or infer additional data from inputs. It is the user’s responsibility to ensure compliance with data privacy regulations when using this tool, especially if processing sensitive or personal data.
-
----
-
-## AI Disclosure
-
-Outputs generated using openai-kokoro-tts are AI-generated. Users should not misrepresent these outputs as human-generated, especially in contexts where such misrepresentation could harm others or violate ethical guidelines.
-
----
-
-## Acknowledgments
-
-This project utilizes the **Kokoro-TTS** engine developed by [hexgrad](https://huggingface.co/hexgrad/Kokoro-82M). We appreciate their work and contributions to the TTS community.
-
----
-
-## TODO
-
-- [x] ONNX CPU inference
-- [ ] Transformers GPU inference
-- [ ] Simplify using kokoro-onnx
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
+Integration source: [MIT license](LICENSE). This project is not affiliated with or endorsed by OpenAI.
