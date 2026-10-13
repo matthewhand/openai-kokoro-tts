@@ -6,6 +6,7 @@ import wave
 from pathlib import Path
 import tempfile
 import threading
+import time
 import unittest
 
 import numpy as np
@@ -28,6 +29,8 @@ class FakeKokoro:
         assert lang == "en-us"
         assert voice in self.get_voices()
         try:
+            # Release the GIL so a missing inference lock causes real overlap.
+            time.sleep(0.008)
             return np.array([0.0, 0.25, -0.25, 0.0], dtype=np.float32), 24000
         finally:
             self.active -= 1

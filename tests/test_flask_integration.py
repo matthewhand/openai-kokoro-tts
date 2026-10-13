@@ -28,7 +28,10 @@ class FakeHandler:
     def generate_speech(self, text, voice=None, speed=1.0):
         if voice and voice not in self.get_voices():
             raise ValueError("Unknown voice")
-        return np.array([0, .25, -.25, 0], dtype=np.float32), 24000
+        # Distinct synthetic samples expose cross-request result reuse.
+        last = text.rsplit(maxsplit=1)[-1]
+        amplitude = (int(last) + 1) / 100 if last.isdecimal() else .25
+        return np.array([0, amplitude, -.25, 0], dtype=np.float32), 24000
 
 
 class FlaskIntegrationTests(unittest.TestCase):
@@ -122,6 +125,7 @@ class FlaskIntegrationTests(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=4) as pool:
             responses = list(pool.map(task, range(12)))
         self.assertTrue(all(status == 200 and data.startswith(b"RIFF") for status, data in responses))
+        self.assertEqual(len({data for _, data in responses}), len(responses))
 
 
 if __name__ == "__main__":
