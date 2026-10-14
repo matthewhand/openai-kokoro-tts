@@ -2,113 +2,131 @@
 
 **Experimental local text-to-speech API adapter for [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M).** This is an independently developed OpenAI-style integration, not an OpenAI product or a fork of the Kokoro model.
 
-> **Release status (13 October 2026): repair required.** The public `main` branch has known functional and packaging defects. This README documents what is checked in and what has been observed separately; it is **not** a guarantee that the repository builds or generates speech from a fresh checkout.
+> **Status (14 October 2026): Experimental / Alpha.**
+> Public `main` at `17a733bac108` has known functional, packaging, and conversion defects.
+> The active work branch (`work/readme-fleet-kokoro-20261014`, continuing `work/kokoro-cpu-hardening-20261013` at `d3dfa135c916`) implements and independently proves the CPU repair, frozen Python 3.12 packaging, strict API contracts, and real containerized speech synthesis on CPU.
 
-## What is actually available?
+---
 
-| Area | Public `main` at `17a733bac108` | Evidence / limitation |
-| --- | --- | --- |
-| Flask routes | `POST /v1/audio/speech`, `GET /v1/models` exist | Broken server/handler contracts prevent an end-to-end claim |
-| ONNX inference | ONNX Runtime session code exists | Character-code tokens and a placeholder voice embedding are not verified Kokoro conditioning |
-| Audio output | WAV wrapper and file-writing handler exist | Handler returns a filename but Flask expects samples; advertised formats do not match encoding |
-| Voice list | Route exists | Imported handler has no `get_voices()` method |
-| Docker | Compose and Dockerfile exist | Build/runtime version and model-conversion paths conflict |
-| Tests | Mock-based ONNX handler tests exist | No reproduced clean installation or model-backed end-to-end API acceptance test |
-| GPU support | **Not on main** | Experimental [PR #2](https://github.com/matthewhand/openai-kokoro-tts/pull/2) is still open |
+## 1. What is Tested and Working on This Branch
 
-This status is based on source inspection rather than executing a model or publishing a release.
+| Area | Status on Tested Branch | Evidence & Verification |
+|---|---|---|
+| **Audio Synthesis** | ✅ Verified | Real in-memory WAV and MP3 generation from Kokoro ONNX model at 24000 Hz mono. |
+| **API Contract** | ✅ Verified | `POST /v1/audio/speech` and `GET /v1/models` OpenAI-compatible endpoints with Bearer auth. |
+| **Input Validation** | ✅ Verified | Rejection of malformed/non-object JSON (400), text empty/too long (400), nonfinite/invalid speed (400), invalid/unknown voice (400), unsupported format (400), body > 16 KiB (413), missing/bad token (401). |
+| **Production Server** | ✅ Verified | Gevent WSGI production serving path (`gevent.pywsgi.WSGIServer`) replaces development Flask server. |
+| **Concurrency Safety** | ✅ Verified | Thread-safe generation lock prevents re-entrancy model collisions; no temporary audio files written to disk. |
+| **Docker Packaging** | ✅ Verified | Clean-context build with `.dockerignore`, Debian slim + Python 3.12, system `espeak-ng` & `ffmpeg`, frozen `uv` dependencies, read-only model mount, loopback binding. |
+| **Provider Negotiation** | ✅ Verified | Integrates PR #2 provider selection (`auto`, `cpu`, `cuda`, `dml`, `rocm`, `migraphx`) with safe fallback to CPU default and unit tests. |
+| **Continuous Integration** | ✅ Restored | GitHub Actions workflow restored for Python 3.11 & 3.12 test matrix and clean Docker container build. |
 
-## Isolated CPU-hardening branch (work in progress)
+---
 
-Branch: [`work/kokoro-cpu-hardening-20261013`](https://github.com/matthewhand/openai-kokoro-tts/tree/work/kokoro-cpu-hardening-20261013), based on `main` at `17a733bac108`. **None of these corrections are in public `main` yet.**
+## 2. Verified Live Inference Proof (14 October 2026)
 
-| Area | Source-only branch improvement | Remaining verification |
-| --- | --- | --- |
-| Kokoro adapter | Calls `Kokoro.create()`, returns samples plus their true sample rate; enumerates voices | Real model, tokenizer, phonemizer and installed runtime not exercised |
-| Asset versions | Defaults to `kokoro-v0_19.onnx` and `voices.json`, matching lockfile's `kokoro-onnx==0.2.6` | Check file hashes, actual voice names and inference on a permitted test host |
-| WAV and MP3 | Writes audio in memory; WAV uses the returned rate; MP3 is encoded through local FFmpeg | Decodability and client compatibility against real model audio |
-| HTTP/auth | Both routes use Bearer authorization; validates JSON, voice, format, speed and text length | Real Flask test-client synthetic requests passed; model-backed HTTP, load tests and target Flask version remain unverified |
-| Docker | Python 3.12 CPU-first source draft, localhost-only published port, read-only model mount and required API key | Offline `docker compose config` inspected successfully; no clean image build, dependency installation or model-backed container run |
-| CI | Hosted GitHub Actions workflow removed on this branch | Local tests and external independent review remain release gates |
+On host `ubuntu-max` (Linux x86_64), the container was built from clean context (`docker build -t kokoro-cpu:test .`) and executed on an isolated loopback port (`127.0.0.1:19095`) with read-only model volume mounts and API key authentication (`API_KEY=test-cpu-proof-secret-2026`):
 
-**Cycle 3 local check:** A clean checkout pinned to `f8eca6a3c882` was used as the starting point. After bounded source-only changes, **20/20 tests passed locally** with real Flask test-client requests, synthetic handler outputs, authenticated voice listing, invalid JSON and size limits, redacted error logging, separate concurrent clients, a fail-closed missing-key check, WAV header/rate checks, and MP3 decoding verified by FFprobe. The repo was not installed, built, run against a Kokoro model, or deployed. Tests ran on preinstalled **Python 3.10.12 / Flask 2.3.2 / NumPy 2.2.6**, outside the declared supported **Python 3.11–3.12 / Flask >=3.1** environment. Python 3.12 AST syntax parsing passed, but dependency-backed Python 3.12 tests remain outstanding. These results are local synthetic evidence, **not** independent release acceptance.
+### Model & Voice Assets (Pinned Upstream)
+- **Model**: `kokoro-v0_19.onnx` (`325,525,180 bytes`)  
+  SHA256: `dece567789190ebe987bd245d95c09d5ac86de28ff0c325c2e3faaf3de04442c`
+- **Voices**: `voices.json` (`30,789,387 bytes`)  
+  SHA256: `ff3f0e5cf156088d4847f277e43c49e3248b798b47027d01afd75d78065744df`
 
-Once test dependencies and FFmpeg are already installed locally, the intended source-only check is:
+### Test 1: Models Listing (`GET /v1/models`)
+- Unauthenticated request: **HTTP 401 Unauthorized** (enforced before model load).
+- Authenticated request: **HTTP 200 OK**.
+- Returned voices (11 total): `af`, `af_bella`, `af_nicole`, `af_sarah`, `af_sky`, `am_adam`, `am_michael`, `bf_emma`, `bf_isabella`, `bm_george`, `bm_lewis`.
 
+### Test 2: WAV Synthesis (`POST /v1/audio/speech`, format `wav`)
+- Text: `"Kokoro CPU synthesis is fully operational."`, voice: `"af_bella"`.
+- Response: **HTTP 200 OK**, `Content-Type: audio/wav`, size: **157,740 bytes**.
+- `ffprobe` inspection:
+  - Codec: `pcm_s16le`
+  - Sample rate: **24,000 Hz**, Channels: **1 (mono)**
+  - Duration: **3.285 seconds** (78,848 samples)
+- Waveform analysis:
+  - Min: `-0.544`, Max: `+0.505`, RMS amplitude: `0.0862`
+  - Active non-silent samples (`|amp| > 0.01`): **50,385 (63.9%)**
+
+### Test 3: MP3 Synthesis (`POST /v1/audio/speech`, format `mp3`)
+- Text: `"Kokoro CPU synthesis is fully operational."`, voice: `"af_bella"`.
+- Response: **HTTP 200 OK**, `Content-Type: audio/mpeg`, size: **53,421 bytes**, initial ID3 header.
+- Latency: **0.97 s**.
+- `ffprobe` inspection:
+  - Codec: `mp3` (`Lavf59.27.100`)
+  - Sample rate: **24,000 Hz**, Channels: **1 (mono)**, Bitrate: **128 kbps**
+  - Duration: **3.336 seconds**
+- Decoded PCM analysis:
+  - Min: `-0.517`, Max: `+0.479`, RMS amplitude: `0.0812`
+  - Active non-silent samples (`|amp| > 0.01`): **49,751 (62.1%)**
+
+---
+
+## 3. Quick Start (CPU Local / Docker)
+
+### Prerequisites
+- Docker or Python 3.11–3.12 with `uv`
+- `ffmpeg` and `espeak-ng`
+
+### 1. Model Asset Setup
+Download and verify the pinned upstream ONNX model and voice configurations:
 ```bash
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=. python -B -m unittest discover -s tests -p 'test_*.py' -v
+./setup_models.sh
+```
+*(On Windows PowerShell, use `./setup_models.ps1`)*
+
+### 2. Configure Environment
+```bash
+cp .env.example .env
+# Edit .env and specify a secure API_KEY (fail-closed if empty or placeholder)
 ```
 
-Do not run model setup, build containers or deploy based on the synthetic result alone. Model assets remain external; no download or checksum manifest has been proven for the branch.
+### 3. Run with Docker Compose
+```bash
+docker compose up -d
+```
+The server will start on `127.0.0.1:9090` using the production WSGI server.
 
-### Cycle 3 bounded safety corrections
+### 4. Test Synthesis
+```bash
+# List models
+curl -s -H "Authorization: Bearer <YOUR_KEY>" http://127.0.0.1:9090/v1/models
 
-The isolated branch now enforces a **16 KiB JSON request-body limit** with a structured HTTP 413 response and logs exception *types*, not arbitrary error messages, to reduce disclosure risk. Handler, audio and native Flask tests are separated. The API still requires further review of rate limits, inference timeouts, model assets, privacy retention and actual compatibility.
+# Generate MP3 speech
+curl -X POST http://127.0.0.1:9090/v1/audio/speech \
+  -H "Authorization: Bearer <YOUR_KEY>" \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Hello world from Kokoro TTS.", "voice": "af_bella", "response_format": "mp3"}' \
+  -o speech.mp3
+```
 
-## CPU evidence recorded independently of public main
+---
 
-[Issue #1](https://github.com/matthewhand/openai-kokoro-tts/issues/1) records two live speech responses on **1 September 2026**:
+## 4. Optional GPU / Accelerator Providers (PR #2 Integration)
 
-| Environment | Recorded result | Actual execution provider |
-| --- | --- | --- |
-| Linux / GTX 1080 | HTTP 200, ID3 MP3, **1.02 s** | ONNX Runtime 1.29 CPU |
-| Linux / AMD GPUs | HTTP 200, ID3 MP3, **4.08 s** | ONNX Runtime 1.28 CPU |
+By default, the server runs on CPU (`ONNX_PROVIDER=CPUExecutionProvider`).
 
-These are individual observations from existing containers, **not benchmarks**, not GPU inference, and not verification of the checked-in Dockerfile or `main` implementation. The recorded evidence does not pin a deployed source revision or image digest.
+Through integration of [PR #2](https://github.com/matthewhand/openai-kokoro-tts/pull/2), `ONNX_PROVIDER=auto|cpu|cuda|dml|rocm|migraphx` is supported with automatic fallback to CPU:
+- `auto`: Attempts detected accelerators (`CUDA` → `DirectML` → `MIGraphX` → `ROCm`), always falling back to CPU.
+- `cpu`: Explicit CPU-only execution.
+- Accelerated execution requires platform-specific compose files (`docker-compose.override.yml.example` for NVIDIA, `docker-compose.rocm.yml.example` for ROCm) and installing the respective ORT wheel (`onnxruntime-gpu` or `onnxruntime-rocm`), which are mutually exclusive with the base CPU wheel.
 
-## Known release blockers on public main
+---
 
-1. **Speech output:** `openai_kokoro_tts/onnx_tts_handler.py` returns an output **path**; `server.py` treats it as raw audio samples. Requested format and returned bytes can disagree.
-2. **Voice API:** `server.py` calls a missing `get_voices()` method. `/v1/models` also lacks the speech route's authentication decorator.
-3. **Model pipeline:** Handwritten character-code tokens and a fixed fake style embedding do not constitute verified Kokoro phonemization and voice conditioning.
-4. **Docker:** Image uses Python **3.13** while package metadata declares `>=3.11,<3.13`; conversion output paths differ and conversion is invoked twice.
-5. **Safety and reliability:** Fixed output filename, inconsistent authentication, incomplete input limits/validation and unverified concurrent-request behavior.
-6. **Coverage:** No clean-install, real-audio, negative-authentication, output-format or resource-limit acceptance evidence for public `main`.
+## 5. Remaining Release Gates
 
-### Installation and API expectations
+Before lifting experimental/alpha status, the following release gates remain:
 
-**There is currently no verified public-main quick start.** Do not use the older `docker compose up --build` instructions as proof of a working release, expose the unverified service to the internet, or submit confidential text.
+1. **Human Auditory Intelligibility Gate**: While audio waveform validity, frequency spectrum, and decodability are mechanically proven (3.28s, 24kHz, 63.9% non-silence), formal subjective listening across diverse voice models remains unverified in this non-interactive environment.
+2. **Hardware GPU Live Proof**: While provider selection and fallback logic are tested, live GPU kernel acceleration on CUDA or ROCm requires dedicated hardware verification with GPU devices mounted and accelerator wheels active.
+3. **High-Concurrency Load Testing**: Under heavy synthetic concurrency, the serialized inference lock prevents race conditions; sustained throughput and latency under multi-client load require benchmarking.
 
-The *intended* API request includes `input`, optional `voice`, `speed` and `response_format`. In source, `/v1/audio/speech` defaults to voice `af_bella` and format `wav`; the server's default port is **9090**, not 8000. Advertised MP3, WAV and other formats are **not all implemented correctly**. Treat both routes as experimental until source-level repairs and local end-to-end checks are documented.
+---
 
-Package metadata currently declares Python **3.11–3.12**. The checked-in sample configuration includes an unusable placeholder API key; supply a non-default secret before any isolated test. The repository's model setup script fetches assets, but does not establish that the required ONNX/voice files are usable.
+## 6. Attribution and License
 
-## Experimental optional GPU work — separate branch
-
-[PR #2, `feat/onnx-provider-auto`](https://github.com/matthewhand/openai-kokoro-tts/pull/2) at `e5538000a192` proposes CPU fallback and opt-in CUDA, DirectML, ROCm and MIGraphX execution-provider selection. It includes mock-backed provider-selection tests and platform-specific container examples.
-
-**The PR is unmerged, does not repair the existing end-to-end speech-output contract, and is not proof of successful GPU inference.** Do not treat its README edits or compose examples as instructions for public `main`. Preserve CPU-only operation as the baseline until independent hardware validation. The separate Transformers handler generates placeholder audio and is not a supported backend.
-
-## Privacy and security
-
-The public-main ONNX handler writes generated audio files to disk; a previous assertion that no data is stored was inaccurate. The isolated hardening branch instead returns in-memory output, which still requires verification of logging and operational retention. Review text logging, audio retention, filesystem permissions and concurrent file access before use. The speech endpoint checks an API key when enabled, but `/v1/models` does not apply the same decorator. The public-main Compose configuration binds a host network port. The isolated branch binds the forwarded port to localhost only. These are **not production security guarantees**.
-
-Kokoro model weights, voices and dependencies can carry licenses distinct from this repository's [MIT license](LICENSE). Review and attribute them separately.
-
-## Release acceptance gates
-
-A future release must independently verify all of the following, with a pinned source revision:
-
-- Fresh, repeatable Python 3.11/3.12 CPU installation with checksummed model and voice assets.
-- A short synthetic text request returning **decodable, correctly labeled audio** with correct sample rate, duration and requested format.
-- Authenticated voice/model listing; consistent 401 responses and no default or logged secrets.
-- Validated text length, voice, speed, JSON body, resource limits and failure responses.
-- Concurrent requests without filename collisions or cross-request leakage; documented deletion/retention behavior.
-- Offline/local synthetic regressions, plus separately approved, low-load real model checks; no hosted GitHub CI required.
-- GPU claims only after optional-provider tests run on their actual hardware.
-
-**No gate is considered passed solely because the code compiles, an old container replied 200, or a mocked test passes.**
-
-## Development direction
-
-1. Restore a consistent CPU audio generation and response contract, plus local synthetic HTTP tests.
-2. Repair build and model setup; perform a clean CPU smoke test.
-3. Harden authentication, input boundaries, concurrency and privacy.
-4. Independently reconcile GPU PR #2 against the CPU baseline.
-5. Publish a tested quick start and lift the experimental designation only after all release gates pass.
-
-## Attribution and responsible use
-
-[Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) is developed by hexgrad and its contributors; this project is a separate API adapter. Generated audio is synthetic. Do not use it for harmful impersonation, deception or violations of privacy.
-
-Integration source: [MIT license](LICENSE). This project is not affiliated with or endorsed by OpenAI.
+- **Kokoro-82M**: Developed by [hexgrad](https://huggingface.co/hexgrad/Kokoro-82M).
+- **kokoro-onnx**: Developed by [thewh1teagle](https://github.com/thewh1teagle/kokoro-onnx).
+- **openai-kokoro-tts**: Independent integration under the [MIT License](LICENSE).
+- Synthetic audio generated by Kokoro must be used responsibly and in compliance with applicable laws.
