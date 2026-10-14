@@ -1,15 +1,26 @@
-version: '3.8'
+# Optional NVIDIA GPU override. Copy to docker-compose.override.yml
+# ONLY on NVIDIA hosts with nvidia-container-toolkit installed.
+# Default compose stays CPU so AMD/NPU/no-GPU boxes boot.
+#
+# Also swap the ORT wheel (they cannot coexist):
+#   docker compose run --rm app uv pip uninstall -y onnxruntime
+#   docker compose run --rm app uv pip install onnxruntime-gpu
+# runtime: nvidia is not enough if the image still has the CPU onnxruntime wheel.
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   docker compose up -d
 
 services:
   app:
-    build:
-      context: .
     runtime: nvidia
+    gpus: all
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
-      - API_KEY=${API_KEY:-your_api_key_here}
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - ONNX_PROVIDER=${ONNX_PROVIDER:-auto}
+      - API_KEY=${API_KEY:?Set a strong non-default API_KEY in .env}
       - PORT=9090
-      - DEFAULT_VOICE=${DEFAULT_VOICE:-af_sky}
-      - REQUIRE_API_KEY=${REQUIRE_API_KEY:-True}
+      - DEFAULT_VOICE=${DEFAULT_VOICE:-af_bella}
+      - REQUIRE_API_KEY=${REQUIRE_API_KEY:-true}
     volumes:
       - ./cache:/root/.cache

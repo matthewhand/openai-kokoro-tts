@@ -1,0 +1,26 @@
+# AMD ROCm override for APUs and discrete AMDGPU cards.
+#
+# Usage:
+#   cp docker-compose.rocm.yml.example docker-compose.rocm.yml
+#   docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
+#
+# For APUs (integrated graphics), the same /dev/kfd + /dev/dri path works.
+# Set HSA_OVERRIDE_GFX_VERSION to match your hardware:
+#   - RDNA2 (RX 6000):  10.3.0
+#   - RDNA3 (RX 7000):  11.0.0
+#   - Strix Halo iGPU:  11.5.1
+#
+# Requires an opt-in ROCm ORT wheel (onnxruntime-rocm), mutually exclusive with CPU wheel.
+
+services:
+  app:
+    devices:
+      - /dev/kfd
+      - /dev/dri
+    group_add:
+      - video
+      - render
+    environment:
+      - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-10.3.0}
+      - HIP_VISIBLE_DEVICES=${HIP_VISIBLE_DEVICES:-0}
+      - ONNX_PROVIDER=${ONNX_PROVIDER:-auto}

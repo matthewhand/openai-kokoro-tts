@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, "work/**", "feat/**" ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} Test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends espeak-ng ffmpeg
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Verify frozen dependencies and install
+        run: uv sync --frozen --extra test --python ${{ matrix.python-version }}
+
+      - name: Run unit and contract tests
+        run: uv run --python ${{ matrix.python-version }} pytest -v
+        env:
+          PYTHONPATH: .
+          API_KEY: ci-test-key
+          REQUIRE_API_KEY: "true"
+
+  docker-build:
+    name: Clean Docker Context Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image from clean context
+        run: docker build -t openai-kokoro-tts:ci .
