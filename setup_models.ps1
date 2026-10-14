@@ -1,99 +1,64 @@
 # setup_models.ps1
-# Variables for model and voice directories
-$MODEL_REPO = "https://huggingface.co/hexgrad/Kokoro-82M"
+# Setup reproducible pinned Kokoro ONNX model and voices assets with SHA256 validation
+
+$ErrorActionPreference = "Stop"
+
 $MODEL_DIR = "models/kokoro"
-$VOICE_DIR = "voices"
-$VOICES_JSON_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.json"
+if (-not (Test-Path $MODEL_DIR)) {
+    New-Item -ItemType Directory -Force -Path $MODEL_DIR | Out-Null
+}
 
-function Print-Status {
+$MODEL_FILE = Join-Path $MODEL_DIR "kokoro-v0_19.onnx"
+$VOICES_FILE = Join-Path $MODEL_DIR "voices.json"
+
+$MODEL_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx"
+$VOICES_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.json"
+
+$EXPECTED_MODEL_SHA256 = "dece567789190ebe987bd245d95c09d5ac86de28ff0c325c2e3faaf3de04442c"
+$EXPECTED_VOICES_SHA256 = "ff3f0e5cf156088d4847f277e43c49e3248b798b47027d01afd75d78065744df"
+
+function Test-FileHash {
     param (
-        [string]$Message
+        [string]$Path,
+        [string]$ExpectedHash
     )
-    Write-Host $Message -ForegroundColor Blue
-}
-
-# Step 1: Ensure Git LFS is installed
-Print-Status "Checking Git LFS installation..."
-if (-not (Get-Command git-lfs -ErrorAction SilentlyContinue)) {
-    Write-Host "Git LFS is not installed. Installing now..."
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        winget install --id Git.LFS -e
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install Git LFS. Please install it manually and re-run the script."
-            exit 1
-        }
-    } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
-        choco install git-lfs -y
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install Git LFS via Chocolatey. Please install it manually and re-run the script."
-            exit 1
-        }
-    } else {
-        Write-Host "Error: Neither winget nor Chocolatey is available for auto-installing Git LFS. Please install Git LFS manually."
-        exit 1
+    if (Test-Path $Path) {
+        $actual = (Get-FileHash -Algorithm SHA256 $Path).Hash.ToLower()
+        return ($actual -eq $ExpectedHash.ToLower())
     }
+    return $false
 }
-git lfs install
 
-# Step 2: Clone the Kokoro-82M model repository
-Print-Status "Cloning the Kokoro-82M repository..."
-if (Test-Path $MODEL_DIR) {
-    Write-Host "Model directory '$MODEL_DIR' already exists. Skipping clone."
+Write-Host "Setting up Kokoro ONNX model and voices assets in $MODEL_DIR..." -ForegroundColor Blue
+
+if (Test-FileHash $VOICES_FILE $EXPECTED_VOICES_SHA256) {
+    Write-Host "voices.json already present with valid SHA256."
 } else {
-    git clone $MODEL_REPO $MODEL_DIR
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to clone the Kokoro model repository. Check your internet connection and try again."
+    Write-Host "Downloading voices.json..."
+    $tmpVoices = "$VOICES_FILE.tmp"
+    Invoke-WebRequest -Uri $VOICES_URL -OutFile $tmpVoices -UseBasicParsing
+    if (-not (Test-FileHash $tmpVoices $EXPECTED_VOICES_SHA256)) {
+        Remove-Item -Force $tmpVoices
+        Write-Error "voices.json SHA256 mismatch"
         exit 1
     }
+    Move-Item -Force $tmpVoices $VOICES_FILE
+    Write-Host "voices.json verified."
 }
 
-# Step 3: Install required system dependencies (espeak-ng)
-Print-Status "Installing system dependencies..."
-if (Get-Command winget -ErrorAction SilentlyContinue) {
-    winget install --id espeak-ng -e --silent
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to install espeak-ng using winget. Check your permissions or package manager configuration."
-        exit 1
-    }
-} elseif (Get-Command choco -ErrorAction SilentlyContinue) {
-    choco install espeak-ng -y
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to install espeak-ng via Chocolatey. Check your permissions or package manager configuration."
-        exit 1
-    }
+if (Test-FileHash $MODEL_FILE $EXPECTED_MODEL_SHA256) {
+    Write-Host "kokoro-v0_19.onnx already present with valid SHA256."
 } else {
-    Write-Host "Error: Neither winget nor Chocolatey is available for auto-installing espeak-ng. Please install espeak-ng manually."
-    exit 1
+    Write-Host "Downloading kokoro-v0_19.onnx..."
+    $tmpModel = "$MODEL_FILE.tmp"
+    Invoke-WebRequest -Uri $MODEL_URL -OutFile $tmpModel -UseBasicParsing
+    if (-not (Test-FileHash $tmpModel $EXPECTED_MODEL_SHA256)) {
+        Remove-Item -Force $tmpModel
+        Write-Error "kokoro-v0_19.onnx SHA256 mismatch"
+        exit 1
+    }
+    Move-Item -Force $tmpModel $MODEL_FILE
+    Write-Host "kokoro-v0_19.onnx verified."
 }
 
-# Step 4: Verify the model file exists and convert to ONNX
-Print-Status "Verifying model file availability and converting to ONNX..."
-if (-not (Test-Path "$MODEL_DIR\kokoro-v0_19.pth")) {
-    Write-Host "Error: Model file 'kokoro-v0_19.pth' is missing in $MODEL_DIR."
-    exit 1
-}
-
-# Install Python dependencies
-pip install torch onnxruntime
-
-# Run the conversion script
-python openai_kokoro_tts/convert_to_onnx.py
-
-if (-not (Test-Path "$MODEL_DIR\kokoro-v0_19.onnx")) {
-    Write-Host "Error: Model file 'kokoro-v0_19.onnx' is missing in $MODEL_DIR."
-    exit 1
-}
-
-# Step 5: Download voices.json
-Print-Status "Downloading voices.json configuration..."
-try {
-    Invoke-WebRequest -Uri $VOICES_JSON_URL -OutFile "$MODEL_DIR\voices.json" -UseBasicParsing -ErrorAction Stop
-} catch {
-    Write-Host "Error: Failed to download voices.json. Check your internet connection and try again."
-    exit 1
-}
-
-# Step 6: Display setup success
-Print-Status "Model and dependencies have been successfully set up!"
-Write-Host "Model directory: $MODEL_DIR"
-Write-Host "Voice directory: $VOICE_DIR"
+Write-Host "Kokoro ONNX CPU assets ready in $MODEL_DIR." -ForegroundColor Green

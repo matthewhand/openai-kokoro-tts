@@ -15,7 +15,17 @@ def getenv_bool(name, default=False):
 
 REQUIRE_API_KEY = getenv_bool("REQUIRE_API_KEY", True)
 API_KEY = os.getenv("API_KEY", "")
-if REQUIRE_API_KEY and (not API_KEY or API_KEY == "your_api_key_here"):
+
+PLACEHOLDER_KEYS = {
+    "",
+    "your_api_key_here",
+    "change_me",
+    "default",
+    "replace_me",
+    "placeholder",
+}
+
+if REQUIRE_API_KEY and (not API_KEY or API_KEY.strip().lower() in PLACEHOLDER_KEYS):
     raise ValueError("Set a non-default API_KEY before starting the server")
 
 

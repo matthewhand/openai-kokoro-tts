@@ -1,5 +1,7 @@
 #!/bin/bash
-
+# LEGACY / UNUSED: Diagnostic shell script from early prototype.
+# Retained for historical reference only. Not part of active serving pipeline.
+#
 # debug_inference.sh
 # Script to debug the Kokoro TTS system by running inference tests.
 

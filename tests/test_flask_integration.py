@@ -75,21 +75,34 @@ class FlaskIntegrationTests(unittest.TestCase):
                 self.assertEqual(response.json["error"], "Unauthorized")
 
     def test_missing_key_fails_closed_at_import(self):
-        env = dict(os.environ, API_KEY="", REQUIRE_API_KEY="true")
-        result = subprocess.run([sys.executable, "-B", "-c", "import openai_kokoro_tts.utils"],
-                                env=env, capture_output=True, text=True, timeout=10, check=False)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Set a non-default API_KEY", result.stderr)
+        for placeholder in ("", "   ", "your_api_key_here", "change_me", "default"):
+            with self.subTest(key=placeholder):
+                env = dict(os.environ, API_KEY=placeholder, REQUIRE_API_KEY="true")
+                result = subprocess.run([sys.executable, "-B", "-c", "import openai_kokoro_tts.utils"],
+                                        env=env, capture_output=True, text=True, timeout=10, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Set a non-default API_KEY", result.stderr)
 
     def test_wrong_token_cannot_generate(self):
         response = self.post({"input": "hello"}, headers={"Authorization": "Bearer not-the-key"})
         self.assertEqual(response.status_code, 401)
 
     def test_bad_payload(self):
-        for obj in ([], None, "string", {}, {"input": ""}, {"input": "x"*1001},
-                    {"input": "hello", "voice": 3}, {"input": "hello", "voice": "bogus"},
-                    {"input": "hello", "speed": True}, {"input": "hello", "speed": "fast"},
-                    {"input": "hello", "response_format": "aac"}):
+        for obj in (
+            [], None, "string", 123, {}, {"input": ""}, {"input": "   "}, {"input": "x"*1001},
+            {"input": 123}, {"input": ["hello"]},
+            {"input": "hello", "voice": 3}, {"input": "hello", "voice": ""},
+            {"input": "hello", "voice": "   "}, {"input": "hello", "voice": ["af_bella"]},
+            {"input": "hello", "voice": "bogus"},
+            {"input": "hello", "speed": True}, {"input": "hello", "speed": False},
+            {"input": "hello", "speed": "fast"}, {"input": "hello", "speed": float("nan")},
+            {"input": "hello", "speed": float("inf")}, {"input": "hello", "speed": 0.1},
+            {"input": "hello", "speed": 2.5},
+            {"input": "hello", "response_format": "aac"},
+            {"input": "hello", "response_format": ["wav"]},
+            {"input": "hello", "response_format": {"type": "wav"}},
+            {"input": "hello", "response_format": 123},
+        ):
             with self.subTest(payload=str(obj)[:40]):
                 response = self.post(obj)
                 self.assertEqual(response.status_code, 400)
@@ -126,6 +139,21 @@ class FlaskIntegrationTests(unittest.TestCase):
             responses = list(pool.map(task, range(12)))
         self.assertTrue(all(status == 200 and data.startswith(b"RIFF") for status, data in responses))
         self.assertEqual(len({data for _, data in responses}), len(responses))
+    def test_missing_assets_and_initialization_failures(self):
+        with patch.dict(os.environ, {"ONNX_MODEL_PATH": "/nonexistent/path/kokoro.onnx"}):
+            app = create_app(handler=None)
+            app.config["TESTING"] = True
+            client = app.test_client()
+
+            # Speech returns 500 when assets missing
+            resp_speech = client.post("/v1/audio/speech", json={"input": "test"}, headers=self.auth)
+            self.assertEqual(resp_speech.status_code, 500)
+            self.assertEqual(resp_speech.json["error"], "Model assets not found")
+
+            # Models route returns 503 when assets missing
+            resp_models = client.get("/v1/models", headers=self.auth)
+            self.assertEqual(resp_models.status_code, 503)
+            self.assertEqual(resp_models.json["error"], "Model assets not found")
 
 
 if __name__ == "__main__":

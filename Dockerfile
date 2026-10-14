@@ -1,5 +1,4 @@
-# CPU-first development image. Requires model files mounted at runtime.
-# Source-only draft: a fresh build and model-backed run are NOT yet verified.
+# CPU-first Docker image. Requires model files mounted at runtime.
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -19,5 +18,5 @@ ENV PYTHONPATH=/app \
     ONNX_PROVIDER=CPUExecutionProvider
 EXPOSE 9090
 
-# No model downloads, startup installs, model conversion or output persistence.
-CMD ["uv", "run", "--no-sync", "python", "-m", "openai_kokoro_tts.server"]
+# Production WSGI serving path via gevent
+CMD ["python", "-m", "openai_kokoro_tts.server"]

@@ -1,3 +1,7 @@
+"""LEGACY / UNUSED: Duplicate orphaned handler in project root.
+The active implementation is openai_kokoro_tts.onnx_tts_handler.
+Retained for historical reference only.
+"""
 import os
 import logging
 import numpy as np

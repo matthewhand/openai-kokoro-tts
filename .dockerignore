@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+models/
+outputs/
+*.wav
+*.mp3
+*.log
+__pycache__/
+*.py[cod]
+.env
+.env.*
+.pytest_cache/

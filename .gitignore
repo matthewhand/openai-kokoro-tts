@@ -170,5 +170,8 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 models/
+outputs/
+*.wav
+*.mp3
 *.bak
 

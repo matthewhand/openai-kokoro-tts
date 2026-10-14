@@ -92,6 +92,21 @@ class HandlerTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(self.handler.kokoro.high_watermark, 1)
 
+    def test_handler_provider_fallback(self):
+        from unittest.mock import patch, MagicMock
+        mock_sess = MagicMock()
+        mock_sess._model_path = self.model
+        mock_sess.get_providers.return_value = ["CPUExecutionProvider"]
+        with patch("onnxruntime.InferenceSession", return_value=mock_sess), \
+             patch("openai_kokoro_tts.onnx_providers.available_providers", return_value=["CUDAExecutionProvider", "CPUExecutionProvider"]), \
+             patch("kokoro_onnx.Kokoro.from_session") as mock_from_sess:
+            mock_kokoro = MagicMock()
+            mock_kokoro.get_voices.return_value = ["af_bella", "af_sky"]
+            mock_from_sess.return_value = mock_kokoro
+
+            handler = OnnxTTSHandler(requested_provider="auto")
+            self.assertEqual(handler.active_provider, "CUDAExecutionProvider")
+
 
 class EncodingTests(unittest.TestCase):
     def test_wav_header_and_rate(self):
