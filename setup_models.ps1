@@ -13,15 +13,15 @@ $ProgressPreference = "SilentlyContinue"
 Set-Location -LiteralPath $PSScriptRoot
 
 $MODEL_DIR = Join-Path "models" "kokoro"
-$BASE_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files"
+$BASE_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1"
 
-$MODEL_NAME = "kokoro-v0_19.onnx"
-$MODEL_SIZE = 325525180
-$MODEL_SHA256 = "dece567789190ebe987bd245d95c09d5ac86de28ff0c325c2e3faaf3de04442c"
+$MODEL_NAME = "kokoro-v1.0.onnx"
+$MODEL_SIZE = 325505369
+$MODEL_SHA256 = "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a"
 
-$VOICES_NAME = "voices.json"
-$VOICES_SIZE = 30789387
-$VOICES_SHA256 = "ff3f0e5cf156088d4847f277e43c49e3248b798b47027d01afd75d78065744df"
+$VOICES_NAME = "voices-v1.0.bin"
+$VOICES_SIZE = 28214398
+$VOICES_SHA256 = "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
 
 # $true if $Path exists with exactly $Size bytes and SHA-256 $Sha256.
 function Test-Asset {

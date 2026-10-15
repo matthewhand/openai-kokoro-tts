@@ -173,6 +173,8 @@ def serve():
         raise KeyboardInterrupt  # waitress closes listeners and exits cleanly
 
     signal.signal(signal.SIGTERM, _stop)
+    if hasattr(signal, "SIGBREAK"):  # Windows: Ctrl+Break / console close
+        signal.signal(signal.SIGBREAK, _stop)
     log.info("Starting waitress on %s:%d (threads=%d, max_waiting=%d)", host, port, threads, gate.max_waiting)
     waitress_serve(app, host=host, port=port, threads=threads,
                    max_request_body_size=64 * 1024, ident="openai-kokoro-tts")
