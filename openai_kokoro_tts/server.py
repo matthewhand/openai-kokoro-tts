@@ -1,134 +1,184 @@
-import os
-import logging
-import time
-import json
+"""OpenAI-style speech routes. The model is lazy-loaded and no audio is persisted."""
 import io
-import numpy as np
-import wave
-from flask import Flask, request, jsonify, send_file
-from functools import wraps
+import logging
+import math
+import os
+import threading
+
+from flask import Flask, jsonify, request, send_file
+from werkzeug.exceptions import HTTPException
+
+from openai_kokoro_tts.admission import InferenceGate
+from openai_kokoro_tts.audio_encoding import MIME_TYPES, encode_audio
+from openai_kokoro_tts.errors import RequestValidationError, ServerBusyError
 from openai_kokoro_tts.onnx_tts_handler import OnnxTTSHandler
-from openai_kokoro_tts.utils import require_api_key, AUDIO_FORMAT_MIME_TYPES
+from openai_kokoro_tts.utils import require_api_key
 
-# Initialize Flask app
-app = Flask(__name__)
-DEBUG_MODE = os.getenv('DEBUG', 'false').lower() in ('true', '1', 'yes')
+log = logging.getLogger(__name__)
 
-# Configure logging
-if DEBUG_MODE:
-    logging.basicConfig(level=logging.DEBUG)
-    logging.debug("Debug mode enabled.")
-else:
-    logging.basicConfig(level=logging.INFO)
 
-# Initialize ONNX TTS handler
-tts_handler = OnnxTTSHandler()
+def create_app(handler=None):
+    app = Flask(__name__)
+    app.config["MAX_CONTENT_LENGTH"] = 16 * 1024
+    # Fail startup (not the first request) on malformed admission settings.
+    gate = handler.gate if getattr(handler, "gate", None) is not None else InferenceGate.from_env()
 
-def process_audio_output(audio, sample_rate=16000):
-    """
-    Processes the raw audio output from the ONNX model into a WAV file as bytes.
+    @app.errorhandler(413)
+    def request_too_large(_exc):
+        return jsonify({"error": "Request body too large"}), 413
 
-    Args:
-        audio (np.ndarray): Raw audio output from the model.
-        sample_rate (int): Sampling rate of the audio (default: 16000).
+    @app.errorhandler(HTTPException)
+    def http_error(exc):
+        return jsonify({"error": exc.name}), exc.code
 
-    Returns:
-        bytes: Byte representation of the WAV file.
-    """
-    # Convert to numpy array if necessary
-    if not isinstance(audio, np.ndarray):
-        audio = np.array(audio)
+    @app.errorhandler(Exception)
+    def unexpected_error(exc):
+        log.error("Unhandled error (%s)", type(exc).__name__)
+        return jsonify({"error": "Internal server error"}), 500
 
-    # Log the audio properties for debugging
-    logging.debug(f"Audio data type: {audio.dtype}, shape: {audio.shape}")
+    model = handler
+    model_lock = threading.Lock()
 
-    # Ensure the audio array is one-dimensional
-    if len(audio.shape) != 1:
-        raise ValueError(f"Unexpected audio shape: {audio.shape}. Expected a 1D array.")
+    def get_model():
+        nonlocal model
+        if model is None:
+            with model_lock:
+                if model is None:
+                    model = OnnxTTSHandler(gate=gate)
+        return model
 
-    # Ensure audio is floating-point and clip to the PCM range
-    if audio.dtype.kind != 'f':
-        audio = audio.astype(np.float32)
+    @app.route('/v1/audio/speech', methods=['POST'])
+    @require_api_key
+    def text_to_speech():
+        if not request.is_json:
+            return jsonify({"error": "Expected a JSON object"}), 400
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({"error": "Expected a JSON object"}), 400
 
-    audio = np.clip(audio * 32767, -32768, 32767).astype(np.int16)
+        text = data.get('input')
+        voice = data.get('voice')
+        speed = data.get('speed')
+        response_format = data.get('response_format')
 
-    # Write WAV file to an in-memory bytes buffer
-    buffer = io.BytesIO()
-    with wave.open(buffer, 'wb') as wav_file:
-        wav_file.setnchannels(1)  # Mono
-        wav_file.setsampwidth(2)  # 16-bit PCM
-        wav_file.setframerate(sample_rate)
-        wav_file.writeframes(audio.tobytes())
+        # Validate input text
+        if not isinstance(text, str) or not text.strip() or len(text) > 1000:
+            return jsonify({"error": "input must be nonempty text of at most 1000 characters"}), 400
 
-    buffer.seek(0)
-    return buffer.read()
+        # Validate voice structure before model load
+        if voice is not None:
+            if not isinstance(voice, str) or not voice.strip():
+                return jsonify({"error": "voice must be a nonempty string"}), 400
+            voice = voice.strip()
 
-@app.route('/v1/audio/speech', methods=['POST'])
-@require_api_key
-def text_to_speech():
-    """
-    Generate speech from text input and return audio.
+        # Validate speed before model load
+        if speed is None:
+            speed = 1.0
+        elif (
+            isinstance(speed, bool)
+            or not isinstance(speed, (int, float))
+            or not math.isfinite(speed)
+            or not 0.5 <= speed <= 2.0
+        ):
+            return jsonify({"error": "speed must be a number between 0.5 and 2.0"}), 400
 
-    Request payload:
-    {
-        "input": "Text to convert to speech",
-        "voice": "af_bella",  # Optional
-        "response_format": "wav",  # Optional
-        "speed": 1.0  # Optional
-    }
+        # Validate response_format before model load
+        if response_format is None:
+            response_format = 'mp3'
+        elif not isinstance(response_format, str) or response_format not in MIME_TYPES:
+            return jsonify({"error": "response_format must be wav or mp3"}), 400
 
-    Returns:
-        Audio file in the requested format.
-    """
-    data = request.json
+        # Lazy model resolution and voice check
+        try:
+            model_instance = get_model()
+        except FileNotFoundError as exc:
+            log.error("Model assets missing (%s)", type(exc).__name__)
+            return jsonify({"error": "Model assets not found"}), 500
+        except Exception as exc:
+            log.error("Model initialization failed (%s)", type(exc).__name__)
+            return jsonify({"error": "Model initialization failed"}), 500
 
-    if not data or 'input' not in data:
-        return jsonify({"error": "Missing 'input' in request body"}), 400
+        target_voice = voice or getattr(model_instance, "default_voice", "af_bella")
+        valid_voices = model_instance.get_voices() if hasattr(model_instance, "get_voices") else []
+        if valid_voices and target_voice not in valid_voices:
+            return jsonify({"error": "Unknown voice"}), 400
 
-    text = data['input']
-    voice = data.get('voice', tts_handler.default_voice)
-    response_format = data.get('response_format', 'wav')
-    speed = float(data.get('speed', 1.0))
+        try:
+            samples, sample_rate = model_instance.generate_speech(text, voice=target_voice, speed=speed)
+            audio_bytes, mime = encode_audio(samples, sample_rate, response_format)
+        except RequestValidationError as exc:
+            # Only this type has a client-safe, fixed message.
+            return jsonify({"error": str(exc)}), 400
+        except ServerBusyError:
+            response = jsonify({"error": "Server busy, retry shortly"})
+            response.status_code = 503
+            response.headers["Retry-After"] = "2"
+            return response
+        except Exception as exc:
+            # Any other failure (including a backend ValueError) is not the
+            # client's doing and its text may contain request data or paths.
+            log.error("Speech generation failed (%s)", type(exc).__name__)
+            return jsonify({"error": "Speech generation failed"}), 500
 
-    if response_format not in AUDIO_FORMAT_MIME_TYPES:
-        return jsonify({"error": f"Unsupported audio format: {response_format}"}), 400
-
-    try:
-        # Generate raw audio using the TTS handler
-        audio = tts_handler.generate_speech(text=text, voice=voice, speed=speed)
-        audio_bytes = process_audio_output(audio)
-
-        mime_type = AUDIO_FORMAT_MIME_TYPES[response_format]
         return send_file(
             io.BytesIO(audio_bytes),
-            mimetype=mime_type,
+            mimetype=mime,
             as_attachment=True,
-            download_name=f"speech.{response_format}"
+            download_name=f"speech.{response_format}",
         )
-    except ValueError as e:
-        logging.error(f"ValueError during TTS generation: {e}")
-        return jsonify({"error": str(e)}), 400
-    except RuntimeError as e:
-        logging.error(f"RuntimeError during TTS generation: {e}")
-        return jsonify({"error": str(e)}), 500
-    except Exception as e:
-        logging.error(f"Unhandled exception during TTS generation: {e}")
-        return jsonify({"error": "Failed to generate speech"}), 500
 
-@app.route('/v1/models', methods=['GET'])
-def list_models():
-    """
-    List available Kokoro-TTS voice models.
+    @app.route('/v1/models', methods=['GET'])
+    @require_api_key
+    def list_models():
+        try:
+            voices = get_model().get_voices()
+        except FileNotFoundError as exc:
+            log.error("Model assets missing (%s)", type(exc).__name__)
+            return jsonify({"error": "Model assets not found"}), 503
+        except Exception as exc:
+            log.error("Voice list unavailable (%s)", type(exc).__name__)
+            return jsonify({"error": "Voice list unavailable"}), 503
+        return jsonify({
+            "object": "list",
+            "data": [{"id": v, "object": "model"} for v in voices],
+            "models": voices,
+        })
 
-    Returns:
-        JSON response with available models.
+    app.config["INFERENCE_GATE"] = gate
+    return app
+
+
+app = create_app()
+
+
+def serve():
+    """Serve with waitress (production WSGI, real worker threads).
+
+    Threads matter for admission: a cooperative (gevent) server blocked inside
+    native ONNX code cannot answer a second request at all, so it can never
+    return the explicit 503 busy response. With threads, one worker runs the
+    inference, up to ``max_waiting`` wait, and the rest are refused promptly.
     """
-    models = tts_handler.get_voices()
-    if DEBUG_MODE:
-        logging.debug(f"Available models: {models}")
-    return jsonify({"models": models})
+    import signal
+
+    from waitress import serve as waitress_serve
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    host = os.getenv("HOST", "0.0.0.0")
+    port = int(os.getenv("PORT", "9090"))
+    gate = app.config["INFERENCE_GATE"]
+    threads = max(4, gate.max_waiting + 3)
+
+    def _stop(_signum, _frame):
+        raise KeyboardInterrupt  # waitress closes listeners and exits cleanly
+
+    signal.signal(signal.SIGTERM, _stop)
+    if hasattr(signal, "SIGBREAK"):  # Windows: Ctrl+Break / console close
+        signal.signal(signal.SIGBREAK, _stop)
+    log.info("Starting waitress on %s:%d (threads=%d, max_waiting=%d)", host, port, threads, gate.max_waiting)
+    waitress_serve(app, host=host, port=port, threads=threads,
+                   max_request_body_size=64 * 1024, ident="openai-kokoro-tts")
+
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 9090))
-    logging.info(f"Kokoro-TTS API running on http://localhost:{port}")
-    app.run(host='0.0.0.0', port=port)
+    serve()

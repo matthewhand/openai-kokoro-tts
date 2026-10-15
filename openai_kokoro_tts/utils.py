@@ -1,85 +1,99 @@
-import os
-import logging
-from flask import request, jsonify
-from functools import wraps
-from dotenv import load_dotenv
-import json
+"""Authentication configuration, intentionally fail-closed by default.
 
-# Load environment variables from .env file
+``REQUIRE_API_KEY`` accepts exactly ``true`` or ``false`` (case-insensitive,
+surrounding whitespace ignored). Unset means ``true``. Anything else, including
+an empty string or a typo such as ``flase``, aborts startup instead of silently
+disabling authentication.
+"""
+import hmac
+import logging
+import os
+from functools import wraps
+
+from dotenv import load_dotenv
+from flask import jsonify, request
+
+from openai_kokoro_tts.errors import ConfigError
+
 load_dotenv()
 
-# Initialize logging
-DEBUG_MODE = os.getenv("DEBUG", "false").lower() in ("true", "1", "yes")
-LOG_LEVEL = logging.DEBUG if DEBUG_MODE else logging.INFO
-logging.basicConfig(level=LOG_LEVEL)
+log = logging.getLogger(__name__)
 
-if DEBUG_MODE:
-    logging.debug("Debug mode enabled in utils.py.")
+PLACEHOLDER_KEYS = frozenset({
+    "",
+    "your_api_key_here",
+    "your_api_key",
+    "your_key_here",
+    "api_key",
+    "apikey",
+    "change_me",
+    "changeme",
+    "replace_me",
+    "replaceme",
+    "default",
+    "placeholder",
+    "secret",
+    "password",
+    "test",
+    "none",
+    "null",
+})
 
-def getenv_bool(name: str, default: bool = False) -> bool:
-    """
-    Get a boolean value from an environment variable.
 
-    Args:
-        name (str): The name of the environment variable.
-        default (bool): The default value if the variable is not set.
+def parse_bool(name, raw):
+    """Strict boolean: only ``true`` / ``false`` are recognised."""
+    value = (raw or "").strip().lower()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise ConfigError(f"{name} must be 'true' or 'false'")
 
-    Returns:
-        bool: The boolean value of the environment variable.
-    """
-    return os.getenv(name, str(default)).lower() in ("yes", "y", "true", "1", "t")
 
-# Load API key and configuration for requiring API key
-API_KEY = os.getenv("API_KEY", "your_api_key_here")
-REQUIRE_API_KEY = getenv_bool("REQUIRE_API_KEY", True)
+def getenv_bool(name, default=False):
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return parse_bool(name, raw)
 
-if not API_KEY or API_KEY == "your_api_key_here":
-    raise ValueError("API_KEY must be set in the environment or .env file.")
 
-def require_api_key(f):
-    """
-    Decorator to enforce API key authentication on routes.
+def is_placeholder_key(key):
+    normalized = (key or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return normalized in PLACEHOLDER_KEYS
 
-    Args:
-        f (function): The Flask route handler function to decorate.
 
-    Returns:
-        function: The decorated function that checks for a valid API key.
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Skip authentication if API key requirement is disabled
+def load_auth_config(environ=None):
+    """Return ``(require_api_key, api_key)`` or raise :class:`ConfigError`."""
+    env = os.environ if environ is None else environ
+    raw = env.get("REQUIRE_API_KEY")
+    require = True if raw is None else parse_bool("REQUIRE_API_KEY", raw)
+    api_key = env.get("API_KEY", "")
+    if require and is_placeholder_key(api_key):
+        raise ConfigError("Set a non-default API_KEY before starting the server")
+    return require, api_key
+
+
+REQUIRE_API_KEY, API_KEY = load_auth_config()
+if not REQUIRE_API_KEY:
+    log.warning("REQUIRE_API_KEY=false: authentication is DISABLED")
+
+
+def _token_matches(presented, expected):
+    # compare_digest rejects non-ASCII str; compare bytes so a hostile header
+    # cannot turn a failed login into a 500.
+    return hmac.compare_digest(presented.encode("utf-8"), expected.encode("utf-8"))
+
+
+def require_api_key(func):
+    @wraps(func)
+    def decorated(*args, **kwargs):
         if not REQUIRE_API_KEY:
-            return f(*args, **kwargs)
-
-        auth_header = request.headers.get("Authorization")
-        if not auth_header:
-            logging.warning("Authorization header is missing.")
-            return jsonify({"error": "Authorization header is missing"}), 401
-
-        if not auth_header.startswith("Bearer "):
-            logging.warning("Authorization header is malformed.")
-            return jsonify({"error": "Authorization header must start with 'Bearer'"}), 401
-
-        token = auth_header.split("Bearer ")[1]
-
-        # Validate the token against the stored API key
-        if token != API_KEY:
-            logging.warning("Invalid API key provided.")
-            return jsonify({"error": "Invalid API key"}), 401
-
-        return f(*args, **kwargs)
-
-    return decorated_function
-
-# Mapping of audio formats to their corresponding MIME types
-AUDIO_FORMAT_MIME_TYPES = json.loads(os.getenv("AUDIO_FORMAT_MIME_TYPES", """
-{
-    "mp3": "audio/mpeg",
-    "opus": "audio/ogg",
-    "aac": "audio/aac",
-    "flac": "audio/flac",
-    "wav": "audio/wav",
-    "pcm": "audio/L16"
-}
-"""))
+            return func(*args, **kwargs)
+        auth = request.headers.get("Authorization", "")
+        if not auth.startswith("Bearer ") or not _token_matches(auth[7:], API_KEY):
+            response = jsonify({"error": "Unauthorized"})
+            response.status_code = 401
+            response.headers["WWW-Authenticate"] = "Bearer"
+            return response
+        return func(*args, **kwargs)
+    return decorated

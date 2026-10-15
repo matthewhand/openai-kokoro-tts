@@ -1,3 +1,6 @@
+"""LEGACY / UNUSED: Obsolete CLI script from early PyTorch prototype.
+Retained for historical reference only. Not part of the active ONNX serving pipeline.
+"""
 import argparse
 import os
 import torch

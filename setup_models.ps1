@@ -1,99 +1,73 @@
 # setup_models.ps1
-# Variables for model and voice directories
-$MODEL_REPO = "https://huggingface.co/hexgrad/Kokoro-82M"
-$MODEL_DIR = "models/kokoro"
-$VOICE_DIR = "voices"
-$VOICES_JSON_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.json"
+# Download the pinned Kokoro v0.19 ONNX model + voices.json (the pair expected by
+# kokoro-onnx 0.2.6, see MODELS.md) into .\models\kokoro, verifying exact size and
+# SHA-256. Idempotent: a file that already matches is left alone.
+# Mirrors setup_models.sh - keep the two in sync.
 
-function Print-Status {
-    param (
-        [string]$Message
-    )
-    Write-Host $Message -ForegroundColor Blue
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+# The default progress bar makes Invoke-WebRequest of a ~325 MB file extremely slow in Windows PowerShell 5.1.
+$ProgressPreference = "SilentlyContinue"
+
+# Always operate relative to the repo root (where docker-compose.yml mounts ./models).
+Set-Location -LiteralPath $PSScriptRoot
+
+$MODEL_DIR = Join-Path "models" "kokoro"
+$BASE_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1"
+
+$MODEL_NAME = "kokoro-v1.0.onnx"
+$MODEL_SIZE = 325505369
+$MODEL_SHA256 = "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a"
+
+$VOICES_NAME = "voices-v1.0.bin"
+$VOICES_SIZE = 28214398
+$VOICES_SHA256 = "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
+
+# $true if $Path exists with exactly $Size bytes and SHA-256 $Sha256.
+function Test-Asset {
+    param([string]$Path, [long]$Size, [string]$Sha256)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    if ((Get-Item -LiteralPath $Path).Length -ne $Size) { return $false }
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+    return ($actual -eq $Sha256.ToLowerInvariant())
 }
 
-# Step 1: Ensure Git LFS is installed
-Print-Status "Checking Git LFS installation..."
-if (-not (Get-Command git-lfs -ErrorAction SilentlyContinue)) {
-    Write-Host "Git LFS is not installed. Installing now..."
-    if (Get-Command winget -ErrorAction SilentlyContinue) {
-        winget install --id Git.LFS -e
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install Git LFS. Please install it manually and re-run the script."
-            exit 1
+function Get-Asset {
+    param([string]$Name, [long]$Size, [string]$Sha256)
+    $dest = Join-Path $MODEL_DIR $Name
+    $tmp = "$dest.tmp"
+
+    if (Test-Asset $dest $Size $Sha256) {
+        Write-Host "$Name already present (size and SHA-256 OK)."
+        return
+    }
+
+    Write-Host "Downloading $Name ($Size bytes)..."
+    try {
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -Force -LiteralPath $tmp }  # partial file from an interrupted run
+        Invoke-WebRequest -Uri "$BASE_URL/$Name" -OutFile $tmp -UseBasicParsing
+
+        $actualSize = (Get-Item -LiteralPath $tmp).Length
+        if ($actualSize -ne $Size) {
+            throw "$Name size mismatch (expected $Size, got $actualSize)"
         }
-    } elseif (Get-Command choco -ErrorAction SilentlyContinue) {
-        choco install git-lfs -y
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "Error: Failed to install Git LFS via Chocolatey. Please install it manually and re-run the script."
-            exit 1
+        $actualSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $tmp).Hash.ToLowerInvariant()
+        if ($actualSha -ne $Sha256.ToLowerInvariant()) {
+            throw "$Name SHA-256 mismatch (expected $Sha256, got $actualSha)"
         }
-    } else {
-        Write-Host "Error: Neither winget nor Chocolatey is available for auto-installing Git LFS. Please install Git LFS manually."
-        exit 1
+        Move-Item -Force -LiteralPath $tmp -Destination $dest
+        Write-Host "$Name verified."
     }
-}
-git lfs install
-
-# Step 2: Clone the Kokoro-82M model repository
-Print-Status "Cloning the Kokoro-82M repository..."
-if (Test-Path $MODEL_DIR) {
-    Write-Host "Model directory '$MODEL_DIR' already exists. Skipping clone."
-} else {
-    git clone $MODEL_REPO $MODEL_DIR
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to clone the Kokoro model repository. Check your internet connection and try again."
-        exit 1
+    finally {
+        # Runs on success (nothing left), failure, and Ctrl+C: never leave a partial/unverified file behind.
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -Force -LiteralPath $tmp -ErrorAction SilentlyContinue }
     }
 }
 
-# Step 3: Install required system dependencies (espeak-ng)
-Print-Status "Installing system dependencies..."
-if (Get-Command winget -ErrorAction SilentlyContinue) {
-    winget install --id espeak-ng -e --silent
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to install espeak-ng using winget. Check your permissions or package manager configuration."
-        exit 1
-    }
-} elseif (Get-Command choco -ErrorAction SilentlyContinue) {
-    choco install espeak-ng -y
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Error: Failed to install espeak-ng via Chocolatey. Check your permissions or package manager configuration."
-        exit 1
-    }
-} else {
-    Write-Host "Error: Neither winget nor Chocolatey is available for auto-installing espeak-ng. Please install espeak-ng manually."
-    exit 1
-}
+Write-Host "Setting up Kokoro ONNX model and voices assets in $MODEL_DIR..." -ForegroundColor Blue
+New-Item -ItemType Directory -Force -Path $MODEL_DIR | Out-Null
 
-# Step 4: Verify the model file exists and convert to ONNX
-Print-Status "Verifying model file availability and converting to ONNX..."
-if (-not (Test-Path "$MODEL_DIR\kokoro-v0_19.pth")) {
-    Write-Host "Error: Model file 'kokoro-v0_19.pth' is missing in $MODEL_DIR."
-    exit 1
-}
+Get-Asset $VOICES_NAME $VOICES_SIZE $VOICES_SHA256
+Get-Asset $MODEL_NAME $MODEL_SIZE $MODEL_SHA256
 
-# Install Python dependencies
-pip install torch onnxruntime
-
-# Run the conversion script
-python openai_kokoro_tts/convert_to_onnx.py
-
-if (-not (Test-Path "$MODEL_DIR\kokoro-v0_19.onnx")) {
-    Write-Host "Error: Model file 'kokoro-v0_19.onnx' is missing in $MODEL_DIR."
-    exit 1
-}
-
-# Step 5: Download voices.json
-Print-Status "Downloading voices.json configuration..."
-try {
-    Invoke-WebRequest -Uri $VOICES_JSON_URL -OutFile "$MODEL_DIR\voices.json" -UseBasicParsing -ErrorAction Stop
-} catch {
-    Write-Host "Error: Failed to download voices.json. Check your internet connection and try again."
-    exit 1
-}
-
-# Step 6: Display setup success
-Print-Status "Model and dependencies have been successfully set up!"
-Write-Host "Model directory: $MODEL_DIR"
-Write-Host "Voice directory: $VOICE_DIR"
+Write-Host "Kokoro ONNX CPU assets ready in $MODEL_DIR." -ForegroundColor Green
