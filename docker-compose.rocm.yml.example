@@ -1,26 +1,51 @@
-# AMD ROCm override for APUs and discrete AMDGPU cards.
+# OPTIONAL AMD ROCm override for APUs and discrete AMD GPUs.
+# *** UNTESTED opt-in example *** - no AMD GPU verification has been performed
+# for this file or for the ORT_PACKAGE build path. Treat it as a starting point.
+#
+# How it works: the ROCm ONNX Runtime wheel replaces the CPU wheel at *image build
+# time* via the Dockerfile build arg ORT_PACKAGE (see docker-compose.override.yml.example
+# for why in-container `uv pip install` is ineffective).
+#
+# PyPI facts checked 2026-10-15 (pypi.org JSON metadata):
+#   * `onnxruntime-rocm` DOES exist on PyPI; latest and the version locked in
+#     uv.lock is 1.22.2.post3, wheels for cp310-cp314, manylinux_2_34 x86_64 only
+#     (no aarch64, no Windows). The wheel (~56 MB) does NOT bundle ROCm libraries.
+#   * No release newer than 1.22.2.post3 exists; to my knowledge upstream ONNX
+#     Runtime dropped the ROCm EP after 1.22 in favour of MIGraphX
+#     (`onnxruntime-migraphx` is also on PyPI, latest 1.27.1) - not wired up here.
+#   * The slim Debian image contains no ROCm userspace (libamdhip64, rocBLAS,
+#     MIOpen, ...). You will most likely need to extend the image with the ROCm
+#     runtime for the wheel to load its EP. Without it the app silently falls back
+#     to CPU (check the log line "ONNX provider selected: ...").
 #
 # Usage:
 #   cp docker-compose.rocm.yml.example docker-compose.rocm.yml
-#   docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d
+#   RENDER_GID=$(getent group render | cut -d: -f3) VIDEO_GID=$(getent group video | cut -d: -f3) \
+#     docker compose -f docker-compose.yml -f docker-compose.rocm.yml up -d --build
 #
-# For APUs (integrated graphics), the same /dev/kfd + /dev/dri path works.
-# Set HSA_OVERRIDE_GFX_VERSION to match your hardware:
+# The container runs as non-root uid 10001, so access to /dev/kfd and /dev/dri comes
+# from the numeric host group IDs below (group *names* may not exist in the image).
+#
+# For APUs the same /dev/kfd + /dev/dri path applies. Set HSA_OVERRIDE_GFX_VERSION
+# to match your hardware:
 #   - RDNA2 (RX 6000):  10.3.0
 #   - RDNA3 (RX 7000):  11.0.0
 #   - Strix Halo iGPU:  11.5.1
-#
-# Requires an opt-in ROCm ORT wheel (onnxruntime-rocm), mutually exclusive with CPU wheel.
 
 services:
   app:
+    build:
+      args:
+        ORT_PACKAGE: "onnxruntime-rocm==1.22.2.post3"
     devices:
       - /dev/kfd
       - /dev/dri
     group_add:
-      - video
-      - render
+      - "${VIDEO_GID:?Set VIDEO_GID, e.g. getent group video | cut -d: -f3}"
+      - "${RENDER_GID:?Set RENDER_GID, e.g. getent group render | cut -d: -f3}"
     environment:
-      - HSA_OVERRIDE_GFX_VERSION=${HSA_OVERRIDE_GFX_VERSION:-10.3.0}
-      - HIP_VISIBLE_DEVICES=${HIP_VISIBLE_DEVICES:-0}
-      - ONNX_PROVIDER=${ONNX_PROVIDER:-auto}
+      HSA_OVERRIDE_GFX_VERSION: ${HSA_OVERRIDE_GFX_VERSION:-10.3.0}
+      HIP_VISIBLE_DEVICES: ${HIP_VISIBLE_DEVICES:-0}
+      # Replaces the base file's CPUExecutionProvider. onnx_providers aliases
+      # `rocm` -> ROCMExecutionProvider (CPU remains the fallback).
+      ONNX_PROVIDER: rocm

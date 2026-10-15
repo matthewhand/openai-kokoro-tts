@@ -1,64 +1,73 @@
 # setup_models.ps1
-# Setup reproducible pinned Kokoro ONNX model and voices assets with SHA256 validation
+# Download the pinned Kokoro v0.19 ONNX model + voices.json (the pair expected by
+# kokoro-onnx 0.2.6, see MODELS.md) into .\models\kokoro, verifying exact size and
+# SHA-256. Idempotent: a file that already matches is left alone.
+# Mirrors setup_models.sh - keep the two in sync.
 
+Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+# The default progress bar makes Invoke-WebRequest of a ~325 MB file extremely slow in Windows PowerShell 5.1.
+$ProgressPreference = "SilentlyContinue"
 
-$MODEL_DIR = "models/kokoro"
-if (-not (Test-Path $MODEL_DIR)) {
-    New-Item -ItemType Directory -Force -Path $MODEL_DIR | Out-Null
+# Always operate relative to the repo root (where docker-compose.yml mounts ./models).
+Set-Location -LiteralPath $PSScriptRoot
+
+$MODEL_DIR = Join-Path "models" "kokoro"
+$BASE_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files"
+
+$MODEL_NAME = "kokoro-v0_19.onnx"
+$MODEL_SIZE = 325525180
+$MODEL_SHA256 = "dece567789190ebe987bd245d95c09d5ac86de28ff0c325c2e3faaf3de04442c"
+
+$VOICES_NAME = "voices.json"
+$VOICES_SIZE = 30789387
+$VOICES_SHA256 = "ff3f0e5cf156088d4847f277e43c49e3248b798b47027d01afd75d78065744df"
+
+# $true if $Path exists with exactly $Size bytes and SHA-256 $Sha256.
+function Test-Asset {
+    param([string]$Path, [long]$Size, [string]$Sha256)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $false }
+    if ((Get-Item -LiteralPath $Path).Length -ne $Size) { return $false }
+    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+    return ($actual -eq $Sha256.ToLowerInvariant())
 }
 
-$MODEL_FILE = Join-Path $MODEL_DIR "kokoro-v0_19.onnx"
-$VOICES_FILE = Join-Path $MODEL_DIR "voices.json"
+function Get-Asset {
+    param([string]$Name, [long]$Size, [string]$Sha256)
+    $dest = Join-Path $MODEL_DIR $Name
+    $tmp = "$dest.tmp"
 
-$MODEL_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v0_19.onnx"
-$VOICES_URL = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices.json"
-
-$EXPECTED_MODEL_SHA256 = "dece567789190ebe987bd245d95c09d5ac86de28ff0c325c2e3faaf3de04442c"
-$EXPECTED_VOICES_SHA256 = "ff3f0e5cf156088d4847f277e43c49e3248b798b47027d01afd75d78065744df"
-
-function Test-FileHash {
-    param (
-        [string]$Path,
-        [string]$ExpectedHash
-    )
-    if (Test-Path $Path) {
-        $actual = (Get-FileHash -Algorithm SHA256 $Path).Hash.ToLower()
-        return ($actual -eq $ExpectedHash.ToLower())
+    if (Test-Asset $dest $Size $Sha256) {
+        Write-Host "$Name already present (size and SHA-256 OK)."
+        return
     }
-    return $false
+
+    Write-Host "Downloading $Name ($Size bytes)..."
+    try {
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -Force -LiteralPath $tmp }  # partial file from an interrupted run
+        Invoke-WebRequest -Uri "$BASE_URL/$Name" -OutFile $tmp -UseBasicParsing
+
+        $actualSize = (Get-Item -LiteralPath $tmp).Length
+        if ($actualSize -ne $Size) {
+            throw "$Name size mismatch (expected $Size, got $actualSize)"
+        }
+        $actualSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $tmp).Hash.ToLowerInvariant()
+        if ($actualSha -ne $Sha256.ToLowerInvariant()) {
+            throw "$Name SHA-256 mismatch (expected $Sha256, got $actualSha)"
+        }
+        Move-Item -Force -LiteralPath $tmp -Destination $dest
+        Write-Host "$Name verified."
+    }
+    finally {
+        # Runs on success (nothing left), failure, and Ctrl+C: never leave a partial/unverified file behind.
+        if (Test-Path -LiteralPath $tmp) { Remove-Item -Force -LiteralPath $tmp -ErrorAction SilentlyContinue }
+    }
 }
 
 Write-Host "Setting up Kokoro ONNX model and voices assets in $MODEL_DIR..." -ForegroundColor Blue
+New-Item -ItemType Directory -Force -Path $MODEL_DIR | Out-Null
 
-if (Test-FileHash $VOICES_FILE $EXPECTED_VOICES_SHA256) {
-    Write-Host "voices.json already present with valid SHA256."
-} else {
-    Write-Host "Downloading voices.json..."
-    $tmpVoices = "$VOICES_FILE.tmp"
-    Invoke-WebRequest -Uri $VOICES_URL -OutFile $tmpVoices -UseBasicParsing
-    if (-not (Test-FileHash $tmpVoices $EXPECTED_VOICES_SHA256)) {
-        Remove-Item -Force $tmpVoices
-        Write-Error "voices.json SHA256 mismatch"
-        exit 1
-    }
-    Move-Item -Force $tmpVoices $VOICES_FILE
-    Write-Host "voices.json verified."
-}
-
-if (Test-FileHash $MODEL_FILE $EXPECTED_MODEL_SHA256) {
-    Write-Host "kokoro-v0_19.onnx already present with valid SHA256."
-} else {
-    Write-Host "Downloading kokoro-v0_19.onnx..."
-    $tmpModel = "$MODEL_FILE.tmp"
-    Invoke-WebRequest -Uri $MODEL_URL -OutFile $tmpModel -UseBasicParsing
-    if (-not (Test-FileHash $tmpModel $EXPECTED_MODEL_SHA256)) {
-        Remove-Item -Force $tmpModel
-        Write-Error "kokoro-v0_19.onnx SHA256 mismatch"
-        exit 1
-    }
-    Move-Item -Force $tmpModel $MODEL_FILE
-    Write-Host "kokoro-v0_19.onnx verified."
-}
+Get-Asset $VOICES_NAME $VOICES_SIZE $VOICES_SHA256
+Get-Asset $MODEL_NAME $MODEL_SIZE $MODEL_SHA256
 
 Write-Host "Kokoro ONNX CPU assets ready in $MODEL_DIR." -ForegroundColor Green

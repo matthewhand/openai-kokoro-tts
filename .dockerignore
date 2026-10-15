@@ -1,13 +1,52 @@
+# Build context allow-list intent: only pyproject.toml, uv.lock, README.md and
+# openai_kokoro_tts/ are COPYed by the Dockerfile; everything else is excluded
+# where practical. Secrets and model weights must never enter the context.
+
+# VCS / CI
 .git
+.gitignore
 .github
+
+# Secrets (must never be baked into an image)
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Local environments and caches
 .venv
+venv
+env
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.cache
+cache/
+
+# Model weights and generated audio (mounted at runtime, never baked in)
 models/
 outputs/
+**/*.onnx
+**/*.pth
+**/*.pt
+**/*.bin
+voices.json
 *.wav
 *.mp3
 *.log
-__pycache__/
-*.py[cod]
-.env
-.env.*
-.pytest_cache/
+
+# Not needed in the runtime image
+tests/
+assets/
+Dockerfile
+.dockerignore
+docker-compose*.yml
+docker-compose*.yml.example
+setup_models.sh
+setup_models.ps1
+MODELS.md
+debug_inference.sh
+cli_local_inference.py
+/onnx_tts_handler.py

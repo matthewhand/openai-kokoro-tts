@@ -5,7 +5,22 @@ services:
     ports:
       - "127.0.0.1:9090:9090"
     volumes:
+      # Model files must be world-readable on the host: the container runs as
+      # uid 10001 (Dockerfile USER). setup_models.sh/.ps1 produce them 0644.
       - ./models:/app/models:ro
+    # Hardening: the app writes nothing to disk (audio is returned from memory),
+    # so the root FS can be read-only. /tmp (tmpfs) holds the numba JIT cache
+    # (NUMBA_CACHE_DIR) and ffmpeg/pydub scratch files.
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Memory cap (override with MEM_LIMIT=4g etc.). No `cpus:` limit on purpose:
+    # Docker rejects a value above the host's core count.
+    mem_limit: ${MEM_LIMIT:-2g}
     environment:
       API_KEY: ${API_KEY:?Set a strong non-default API_KEY in .env}
       REQUIRE_API_KEY: "true"
@@ -14,4 +29,5 @@ services:
       DEFAULT_VOICE: ${DEFAULT_VOICE:-af_bella}
       ONNX_MODEL_PATH: /app/models/kokoro/kokoro-v0_19.onnx
       VOICES_PATH: /app/models/kokoro/voices.json
+      # CPU-first default; accelerator override files replace this value.
       ONNX_PROVIDER: CPUExecutionProvider

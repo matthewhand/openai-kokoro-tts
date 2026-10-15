@@ -10,7 +10,7 @@ MIME_TYPES = {"wav": "audio/wav", "mp3": "audio/mpeg"}
 
 
 def encode_audio(samples, sample_rate, output_format):
-    if output_format not in MIME_TYPES:
+    if not isinstance(output_format, str) or output_format not in MIME_TYPES:
         raise ValueError("response_format must be wav or mp3")
     samples = np.asarray(samples, dtype=np.float32)
     if samples.ndim != 1 or samples.size == 0 or not np.isfinite(samples).all():

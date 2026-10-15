@@ -1,26 +1,44 @@
-# Optional NVIDIA GPU override. Copy to docker-compose.override.yml
-# ONLY on NVIDIA hosts with nvidia-container-toolkit installed.
-# Default compose stays CPU so AMD/NPU/no-GPU boxes boot.
+# OPTIONAL NVIDIA GPU override. *** UNTESTED opt-in example ***
+# No NVIDIA GPU verification has been performed for this file or for the
+# ORT_PACKAGE build path. Treat it as a starting point, not a supported config.
 #
-# Also swap the ORT wheel (they cannot coexist):
-#   docker compose run --rm app uv pip uninstall -y onnxruntime
-#   docker compose run --rm app uv pip install onnxruntime-gpu
-# runtime: nvidia is not enough if the image still has the CPU onnxruntime wheel.
+# The default compose stack stays CPU so AMD/NPU/no-GPU boxes boot.
 #
+# How it works: ONNX Runtime ships as mutually exclusive wheels, so the GPU
+# wheel has to be baked into the *image*. The Dockerfile takes a build arg
+# ORT_PACKAGE (default `onnxruntime`); when it differs, `uv pip uninstall
+# onnxruntime && uv pip install "$ORT_PACKAGE"` runs inside /app/.venv at build
+# time. (Running `docker compose run --rm app uv pip ...` does NOT work: the
+# container is ephemeral and is discarded, and the next image build starts again
+# from the CPU wheel.)
+#
+# Caveats you must check yourself:
+#   * onnxruntime-gpu 1.31.0 (the version locked in uv.lock) is built for CUDA 13
+#     and does not bundle the CUDA/cuDNN libraries. nvidia-container-toolkit only
+#     injects the host *driver* libraries, not the CUDA toolkit, and this slim
+#     Debian image has none. The `[cuda,cudnn]` extras below pull the NVIDIA
+#     runtime libraries from PyPI; whether ORT then finds them at runtime has not
+#     been tested here. Host driver must support CUDA 13 (R580+).
+#   * ONNX_PROVIDER=cuda falls back to CPU if the CUDA EP cannot load; check the
+#     startup log line "ONNX provider selected: ..." to see what is really used.
+#
+# Usage (nvidia-container-toolkit required on the host):
 #   cp docker-compose.override.yml.example docker-compose.override.yml
-#   docker compose up -d
+#   docker compose up -d --build
+# (docker-compose.override.yml is picked up automatically.)
 
 services:
   app:
+    build:
+      args:
+        ORT_PACKAGE: "onnxruntime-gpu[cuda,cudnn]==1.31.0"
     runtime: nvidia
     gpus: all
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
-      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - ONNX_PROVIDER=${ONNX_PROVIDER:-auto}
-      - API_KEY=${API_KEY:?Set a strong non-default API_KEY in .env}
-      - PORT=9090
-      - DEFAULT_VOICE=${DEFAULT_VOICE:-af_bella}
-      - REQUIRE_API_KEY=${REQUIRE_API_KEY:-true}
-    volumes:
-      - ./cache:/root/.cache
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      # Replaces the base file's CPUExecutionProvider. Use `auto` to let
+      # onnx_providers pick whatever the installed wheel exposes.
+      ONNX_PROVIDER: cuda
+      # CUDA JIT/kernel cache must live on the tmpfs (read-only rootfs, no $HOME).
+      CUDA_CACHE_PATH: /tmp/cuda-cache

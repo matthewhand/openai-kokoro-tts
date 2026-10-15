@@ -11,6 +11,8 @@ import unittest
 
 import numpy as np
 
+from openai_kokoro_tts.admission import InferenceGate
+from openai_kokoro_tts.errors import RequestValidationError
 from openai_kokoro_tts.onnx_tts_handler import OnnxTTSHandler
 from openai_kokoro_tts.audio_encoding import encode_audio
 
@@ -48,7 +50,8 @@ class HandlerTests(unittest.TestCase):
         self.addCleanup(lambda: [os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v) for k, v in previous.items()])
         os.environ["ONNX_MODEL_PATH"] = self.model
         os.environ["VOICES_PATH"] = self.voices
-        self.handler = OnnxTTSHandler(kokoro_factory=FakeKokoro)
+        # Roomy gate: the serialization test below must not trip the busy limit.
+        self.handler = OnnxTTSHandler(kokoro_factory=FakeKokoro, gate=InferenceGate(32, 30))
 
     def test_uses_kokoro_create(self):
         audio, rate = self.handler.generate_speech("Synthetic", "af_sky", 1.25)
@@ -57,12 +60,12 @@ class HandlerTests(unittest.TestCase):
 
     def test_invalid_voice_and_speed(self):
         for voice, speed in [("bad", 1), (None, float("nan")), (None, True), (None, .1), (None, 2.1)]:
-            with self.subTest(voice=voice, speed=speed), self.assertRaises(ValueError):
+            with self.subTest(voice=voice, speed=speed), self.assertRaises(RequestValidationError):
                 self.handler.generate_speech("test", voice, speed)
 
     def test_bounded_input(self):
         for value in (None, 9, "", "  ", "a" * 1001):
-            with self.subTest(value=str(value)[:20]), self.assertRaises(ValueError):
+            with self.subTest(value=str(value)[:20]), self.assertRaises(RequestValidationError):
                 self.handler.generate_speech(value)
 
     def test_no_saved_audio_file(self):
@@ -79,7 +82,7 @@ class HandlerTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.handler.generate_speech("bad")
 
-    def test_calls_share_one_lock(self):
+    def test_calls_are_serialized(self):
         errors = []
         def worker():
             try:
@@ -92,12 +95,19 @@ class HandlerTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(self.handler.kokoro.high_watermark, 1)
 
+    def _fake_ort(self, honored):
+        """InferenceSession stand-in; ``honored`` = providers ORT really applies."""
+        from unittest.mock import MagicMock
+
+        def make(model_path, providers):
+            sess = MagicMock()
+            sess.get_providers.return_value = [p for p in providers if p in honored] + ["CPUExecutionProvider"]
+            return sess
+        return make
+
     def test_handler_provider_fallback(self):
         from unittest.mock import patch, MagicMock
-        mock_sess = MagicMock()
-        mock_sess._model_path = self.model
-        mock_sess.get_providers.return_value = ["CPUExecutionProvider"]
-        with patch("onnxruntime.InferenceSession", return_value=mock_sess), \
+        with patch("onnxruntime.InferenceSession", side_effect=self._fake_ort({"CUDAExecutionProvider"})), \
              patch("openai_kokoro_tts.onnx_providers.available_providers", return_value=["CUDAExecutionProvider", "CPUExecutionProvider"]), \
              patch("kokoro_onnx.Kokoro.from_session") as mock_from_sess:
             mock_kokoro = MagicMock()
@@ -106,6 +116,18 @@ class HandlerTests(unittest.TestCase):
 
             handler = OnnxTTSHandler(requested_provider="auto")
             self.assertEqual(handler.active_provider, "CUDAExecutionProvider")
+
+    def test_active_provider_is_truthful_when_ort_silently_falls_back(self):
+        # ORT keeps only CPU although CUDA was requested: must not report CUDA.
+        from unittest.mock import patch, MagicMock
+        with patch("onnxruntime.InferenceSession", side_effect=self._fake_ort(set())), \
+             patch("openai_kokoro_tts.onnx_providers.available_providers", return_value=["CUDAExecutionProvider", "CPUExecutionProvider"]), \
+             patch("kokoro_onnx.Kokoro.from_session") as mock_from_sess:
+            mock_kokoro = MagicMock()
+            mock_kokoro.get_voices.return_value = ["af_bella", "af_sky"]
+            mock_from_sess.return_value = mock_kokoro
+            handler = OnnxTTSHandler(requested_provider="auto")
+            self.assertEqual(handler.active_provider, "CPUExecutionProvider")
 
 
 class EncodingTests(unittest.TestCase):
